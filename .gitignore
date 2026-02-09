@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env
+
+# Keypairs and sensitive data
+backend/keys/
+backend/uploads/
+*.json
+!package.json
+!tsconfig.json
+
+# CLI build output
+cli/dist/
+cli/node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Local description file (contains sensitive info)
+01_Description.txt
