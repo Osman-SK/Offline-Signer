@@ -55,9 +55,18 @@
                         <input type="text" id="import-name" required placeholder="e.g., imported-wallet">
                     </div>
                     <div class="form-group">
-                        <label for="import-key">Private Key (JSON Array):</label>
-                        <textarea id="import-key" required placeholder="[1,2,3,4,...]" rows="3"></textarea>
-                        <small>Enter your private key as a JSON array of numbers</small>
+                        <label for="import-format">Private Key Format:</label>
+                        <select id="import-format" required>
+                            <option value="base58" selected>Base58 (Recommended)</option>
+                            <option value="base64">Base64</option>
+                            <option value="json">JSON Array</option>
+                        </select>
+                        <small>Select the format of your private key</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="import-key">Private Key:</label>
+                        <textarea id="import-key" required placeholder="Enter your private key..." rows="3"></textarea>
+                        <small id="format-hint">Base58 encoded private key (e.g., from Phantom, Solflare)</small>
                     </div>
                     <div class="form-group">
                         <label for="import-password">Password:</label>

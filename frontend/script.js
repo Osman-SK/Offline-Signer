@@ -38,6 +38,9 @@ function setupEventListeners() {
     // Import form
     document.getElementById('import-form').addEventListener('submit', handleImportKeypair);
 
+    // Format selector for import
+    document.getElementById('import-format').addEventListener('change', handleFormatChange);
+
     // File upload
     const fileUploadArea = document.getElementById('file-upload-area');
     const fileInput = document.getElementById('transaction-file');
@@ -117,18 +120,40 @@ async function handleGenerateKeypair(e) {
     }
 }
 
+function handleFormatChange(e) {
+    const format = e.target.value;
+    const hintEl = document.getElementById('format-hint');
+    const keyInput = document.getElementById('import-key');
+    
+    switch (format) {
+        case 'base58':
+            hintEl.textContent = 'Base58 encoded private key (e.g., from Phantom, Solflare, Solana CLI)';
+            keyInput.placeholder = 'e.g., 5Mai...';
+            break;
+        case 'base64':
+            hintEl.textContent = 'Base64 encoded private key';
+            keyInput.placeholder = 'e.g., AAAAAA...';
+            break;
+        case 'json':
+            hintEl.textContent = 'JSON array of numbers (byte array format)';
+            keyInput.placeholder = '[1, 2, 3, 4, ...]';
+            break;
+    }
+}
+
 async function handleImportKeypair(e) {
     e.preventDefault();
 
     const name = document.getElementById('import-name').value;
     const privateKey = document.getElementById('import-key').value;
     const password = document.getElementById('import-password').value;
+    const format = document.getElementById('import-format').value;
 
     try {
         const response = await fetch(`${API_BASE}/keys/import`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, privateKey, password })
+            body: JSON.stringify({ name, privateKey, password, format })
         });
 
         const data = await response.json();

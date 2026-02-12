@@ -31,5 +31,5 @@ logs/
 *.log
 npm-debug.log*
 
-# Local description file (contains sensitive info)
-01_Description.txt
+# Local description file
+*.txt

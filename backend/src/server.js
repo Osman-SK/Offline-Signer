@@ -56,8 +56,8 @@ app.post('/api/keys/generate', (req, res) => {
 
 app.post('/api/keys/import', (req, res) => {
   try {
-    const { name, privateKey, password } = req.body;
-    const keypair = keyManager.importKeypair(name, privateKey, password);
+    const { name, privateKey, password, format } = req.body;
+    const keypair = keyManager.importKeypair(name, privateKey, password, format);
     res.json({
       success: true,
       publicKey: keypair.publicKey,
