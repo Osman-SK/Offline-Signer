@@ -406,5 +406,478 @@ function showStatus(message, type = 'info') {
 window.showTab = showTab;
 window.copyPublicKey = copyPublicKey;
 window.deleteKeypair = deleteKeypair;
+// ============================================================================
+// Import Method Selection Functions
+// ============================================================================
+// State for import flow
+let currentImportMethod = null;
+let derivedAddressesCache = [];
+/**
+ * Handle import method selection (Private Key vs Seed Phrase)
+ */
+function selectImportMethod(method) {
+    currentImportMethod = method;
+    // Hide method selection, show chosen branch
+    const methodSelection = document.getElementById('import-method-selection');
+    const privateKeyBranch = document.getElementById('private-key-form');
+    const seedPhraseBranch = document.getElementById('seed-phrase-container');
+    if (methodSelection) {
+        methodSelection.style.display = 'none';
+    }
+    // Update card selection styling
+    document.querySelectorAll('.method-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    document.getElementById(`method-${method}`)?.classList.add('selected');
+    // Show appropriate branch
+    if (method === 'private-key' && privateKeyBranch) {
+        privateKeyBranch.style.display = 'block';
+    }
+    else if (method === 'seed-phrase' && seedPhraseBranch) {
+        seedPhraseBranch.style.display = 'block';
+        // Show first step (mnemonic input)
+        showSeedPhraseStep('mnemonic-step');
+    }
+}
+/**
+ * Go back to method selection
+ */
+function backToMethodSelection() {
+    currentImportMethod = null;
+    const methodSelection = document.getElementById('import-method-selection');
+    const privateKeyBranch = document.getElementById('private-key-form');
+    const seedPhraseBranch = document.getElementById('seed-phrase-container');
+    if (methodSelection) {
+        methodSelection.style.display = 'block';
+    }
+    if (privateKeyBranch) {
+        privateKeyBranch.style.display = 'none';
+        privateKeyBranch.reset();
+    }
+    if (seedPhraseBranch) {
+        seedPhraseBranch.style.display = 'none';
+    }
+    // Reset all seed phrase steps
+    showSeedPhraseStep('mnemonic-step');
+    derivedAddressesCache = [];
+}
+// Make available globally
+window.selectImportMethod = selectImportMethod;
+window.backToMethodSelection = backToMethodSelection;
+// ============================================================================
+// Private Key Import Functions
+// ============================================================================
+/**
+ * Handle private key format selection change
+ */
+function handlePKFormatChange() {
+    const formatSelect = document.getElementById('pk-format-select');
+    const hintEl = document.getElementById('pk-format-hint');
+    const keyInput = document.getElementById('pk-private-key');
+    if (!formatSelect || !hintEl || !keyInput)
+        return;
+    const format = formatSelect.value;
+    switch (format) {
+        case 'base58':
+            hintEl.textContent = 'Base58 encoded (e.g., from Phantom, Solflare, Solana CLI)';
+            keyInput.placeholder = 'e.g., 5Maii9c...';
+            break;
+        case 'base64':
+            hintEl.textContent = 'Base64 encoded private key';
+            keyInput.placeholder = 'e.g., AAAAAA...';
+            break;
+        case 'json':
+            hintEl.textContent = 'JSON array of numbers (byte array format)';
+            keyInput.placeholder = '[1, 2, 3, 4, ...]';
+            break;
+    }
+}
+/**
+ * Handle private key import form submission
+ */
+async function handlePrivateKeyImport(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('pk-import-name');
+    const keyInput = document.getElementById('pk-private-key');
+    const passwordInput = document.getElementById('pk-import-password');
+    const formatSelect = document.getElementById('pk-format-select');
+    const name = nameInput.value;
+    const privateKey = keyInput.value;
+    const password = passwordInput.value;
+    const format = (formatSelect?.value || 'base58');
+    try {
+        const response = await fetch(`${API_BASE}/keys/import`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, privateKey, password, format })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showStatus('Keypair imported successfully!', 'success');
+            backToMethodSelection();
+            await loadKeypairs();
+        }
+        else {
+            showStatus('Failed to import: ' + data.error, 'error');
+        }
+    }
+    catch (error) {
+        showStatus('Error: ' + (error instanceof Error ? error.message : String(error)), 'error');
+    }
+}
+// ============================================================================
+// Seed Phrase (Mnemonic) Import Functions
+// ============================================================================
+// Current step tracker for back navigation
+let currentSeedPhraseStep = 'mnemonic-step';
+/**
+ * Show specific step in seed phrase import flow
+ */
+function showSeedPhraseStep(stepId) {
+    currentSeedPhraseStep = stepId;
+    const steps = ['mnemonic-step', 'derivation-step', 'address-selection-step'];
+    steps.forEach(id => {
+        const step = document.getElementById(id);
+        if (step) {
+            step.style.display = id === stepId ? 'block' : 'none';
+        }
+    });
+}
+/**
+ * Validate mnemonic in real-time
+ */
+async function validateMnemonicInput() {
+    const mnemonicInput = document.getElementById('mnemonic-input');
+    const validationEl = document.getElementById('mnemonic-validation');
+    const continueBtn = document.getElementById('continue-to-derivation-btn');
+    const mnemonic = mnemonicInput.value.trim();
+    if (!mnemonic) {
+        validationEl.textContent = '';
+        validationEl.className = 'validation-status';
+        continueBtn.disabled = true;
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/keys/validate-mnemonic`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mnemonic })
+        });
+        const data = await response.json();
+        if (data.success) {
+            const validation = data.validation;
+            validationEl.textContent = validation.message;
+            if (validation.valid) {
+                if (validation.checksumValid) {
+                    validationEl.className = 'validation-status valid';
+                }
+                else {
+                    validationEl.className = 'validation-status warning';
+                }
+                continueBtn.disabled = false;
+            }
+            else {
+                validationEl.className = 'validation-status invalid';
+                continueBtn.disabled = true;
+            }
+        }
+    }
+    catch (error) {
+        validationEl.textContent = 'Error validating mnemonic';
+        validationEl.className = 'validation-status invalid';
+        continueBtn.disabled = true;
+    }
+}
+/**
+ * Continue to derivation step
+ */
+function continueToDerivationStep() {
+    showSeedPhraseStep('derivation-step');
+}
+/**
+ * Go back one step in the seed phrase import flow
+ */
+function goBackOneStep() {
+    switch (currentSeedPhraseStep) {
+        case 'mnemonic-step':
+            // From mnemonic, go back to method selection
+            backToMethodSelection();
+            break;
+        case 'derivation-step':
+            // From derivation, go back to mnemonic
+            showSeedPhraseStep('mnemonic-step');
+            break;
+        case 'address-selection-step':
+            // From address selection, go back to derivation
+            showSeedPhraseStep('derivation-step');
+            break;
+    }
+}
+/**
+ * Handle derivation preset change
+ */
+function handleDerivationPresetChange() {
+    const presetSelect = document.getElementById('derivation-preset');
+    const customInputContainer = document.getElementById('custom-path-input-container');
+    const descriptionEl = document.getElementById('preset-description');
+    const preset = presetSelect.value;
+    // Show/hide custom path input
+    if (customInputContainer) {
+        customInputContainer.style.display = preset === 'custom' ? 'block' : 'none';
+    }
+    // Update description
+    const descriptions = {
+        'backpack': 'Backpack wallet standard path',
+        'backpack-legacy': 'Backpack wallet legacy format',
+        'solana-legacy': 'Legacy Solana wallets',
+        'ledger-live': 'Ledger hardware wallets',
+        'custom': 'Enter your custom derivation path below'
+    };
+    if (descriptionEl) {
+        descriptionEl.textContent = descriptions[preset] || '';
+    }
+}
+/**
+ * Build custom derivation path from input
+ */
+function buildCustomPath() {
+    const customPathInput = document.getElementById('custom-path-input');
+    return customPathInput?.value?.trim() || "m/44'/501'/{index}'";
+}
+/**
+ * Get current derivation path
+ */
+function getDerivationPath() {
+    const presetSelect = document.getElementById('derivation-preset');
+    if (presetSelect.value === 'custom') {
+        return buildCustomPath();
+    }
+    // Return preset path (actual path will be handled by backend)
+    return presetSelect.value;
+}
+/**
+ * Preview derived addresses
+ */
+async function previewDerivedAddresses() {
+    const mnemonicInput = document.getElementById('mnemonic-input');
+    const passphraseInput = document.getElementById('mnemonic-passphrase');
+    const mnemonic = mnemonicInput.value.trim();
+    const passphrase = passphraseInput.value;
+    const preset = document.getElementById('derivation-preset').value;
+    const customPath = preset === 'custom' ? buildCustomPath() : '';
+    try {
+        showStatus('Deriving addresses...', 'info');
+        const response = await fetch(`${API_BASE}/keys/derive-preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mnemonic,
+                passphrase,
+                preset,
+                customPath,
+                startIndex: 0,
+                count: 5
+            })
+        });
+        const data = await response.json();
+        if (data.success) {
+            derivedAddressesCache = data.addresses;
+            displayDerivedAddresses(data.addresses);
+            showSeedPhraseStep('address-selection-step');
+            showStatus('', 'info'); // Clear status
+        }
+        else {
+            showStatus('Failed to derive addresses: ' + data.error, 'error');
+        }
+    }
+    catch (error) {
+        showStatus('Error: ' + (error instanceof Error ? error.message : String(error)), 'error');
+    }
+}
+/**
+ * Display derived addresses in table
+ */
+function displayDerivedAddresses(addresses) {
+    const tbody = document.getElementById('address-list');
+    if (!tbody)
+        return;
+    tbody.innerHTML = addresses.map((addr, idx) => `
+    <tr>
+      <td><input type="radio" name="selected-address" value="${addr.index}" ${idx === 0 ? 'checked' : ''}></td>
+      <td>${addr.index}</td>
+      <td>${addr.path}</td>
+      <td>${shortenAddressForDisplay(addr.publicKey)}</td>
+    </tr>
+  `).join('');
+}
+/**
+ * Shorten address for display (first 4 + last 4 chars)
+ */
+function shortenAddressForDisplay(address) {
+    if (address.length < 10)
+        return address;
+    return address.slice(0, 4) + '...' + address.slice(-4);
+}
+/**
+ * Load more addresses
+ */
+async function loadMoreAddresses() {
+    const mnemonicInput = document.getElementById('mnemonic-input');
+    const passphraseInput = document.getElementById('mnemonic-passphrase');
+    const mnemonic = mnemonicInput.value.trim();
+    const passphrase = passphraseInput.value;
+    const preset = document.getElementById('derivation-preset').value;
+    const customPath = preset === 'custom' ? buildCustomPath() : '';
+    const startIndex = derivedAddressesCache.length;
+    try {
+        const loadMoreBtn = document.getElementById('load-more-addresses-btn');
+        loadMoreBtn.textContent = 'Loading...';
+        loadMoreBtn.disabled = true;
+        const response = await fetch(`${API_BASE}/keys/derive-preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mnemonic,
+                passphrase,
+                preset,
+                customPath,
+                startIndex,
+                count: 5
+            })
+        });
+        const data = await response.json();
+        if (data.success) {
+            derivedAddressesCache = [...derivedAddressesCache, ...data.addresses];
+            // Append to table
+            const tbody = document.getElementById('address-list');
+            const newRows = data.addresses.map(addr => `
+        <tr>
+          <td><input type="radio" name="selected-address" value="${addr.index}"></td>
+          <td>${addr.index}</td>
+          <td>${addr.path}</td>
+          <td>${shortenAddressForDisplay(addr.publicKey)}</td>
+        </tr>
+      `).join('');
+            tbody.innerHTML += newRows;
+        }
+        loadMoreBtn.textContent = 'Load More';
+        loadMoreBtn.disabled = false;
+    }
+    catch (error) {
+        showStatus('Error loading more addresses', 'error');
+    }
+}
+/**
+ * Get selected address index from radio buttons
+ */
+function getSelectedAddressIndex() {
+    const selected = document.querySelector('input[name="selected-address"]:checked');
+    return selected ? parseInt(selected.value) : null;
+}
+/**
+ * Handle seed phrase import
+ */
+async function handleSeedPhraseImport() {
+    const nameInput = document.getElementById('sp-import-name');
+    const passwordInput = document.getElementById('sp-import-password');
+    const mnemonicInput = document.getElementById('mnemonic-input');
+    const passphraseInput = document.getElementById('mnemonic-passphrase');
+    const name = nameInput.value;
+    const password = passwordInput.value;
+    const mnemonic = mnemonicInput.value.trim();
+    const passphrase = passphraseInput.value;
+    const accountIndex = getSelectedAddressIndex();
+    const preset = document.getElementById('derivation-preset').value;
+    const customPath = preset === 'custom' ? buildCustomPath() : '';
+    if (accountIndex === null) {
+        showStatus('Please select an address to import', 'error');
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/keys/import-mnemonic`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name,
+                mnemonic,
+                accountIndex,
+                password,
+                passphrase,
+                preset,
+                customPath
+            })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showStatus('Keypair imported successfully from seed phrase!', 'success');
+            backToMethodSelection();
+            await loadKeypairs();
+        }
+        else {
+            showStatus('Failed to import: ' + data.error, 'error');
+        }
+    }
+    catch (error) {
+        showStatus('Error: ' + (error instanceof Error ? error.message : String(error)), 'error');
+    }
+}
+// ============================================================================
+// Additional Event Listeners Setup
+// ============================================================================
+// Setup additional event listeners after DOM load
+document.addEventListener('DOMContentLoaded', () => {
+    // Private key format dropdown
+    const pkFormatSelect = document.getElementById('pk-format-select');
+    if (pkFormatSelect) {
+        pkFormatSelect.addEventListener('change', handlePKFormatChange);
+    }
+    // Private key form
+    const privateKeyForm = document.getElementById('private-key-form');
+    if (privateKeyForm) {
+        privateKeyForm.addEventListener('submit', handlePrivateKeyImport);
+    }
+    // Mnemonic input validation (debounced)
+    const mnemonicInput = document.getElementById('mnemonic-input');
+    if (mnemonicInput) {
+        let debounceTimer;
+        mnemonicInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(validateMnemonicInput, 500);
+        });
+    }
+    // Continue to derivation step
+    const continueBtn = document.getElementById('continue-to-derivation-btn');
+    if (continueBtn) {
+        continueBtn.addEventListener('click', continueToDerivationStep);
+    }
+    // Derivation preset change
+    const presetSelect = document.getElementById('derivation-preset');
+    if (presetSelect) {
+        presetSelect.addEventListener('change', handleDerivationPresetChange);
+    }
+    // Preview addresses
+    const previewBtn = document.getElementById('preview-addresses-btn');
+    if (previewBtn) {
+        previewBtn.addEventListener('click', previewDerivedAddresses);
+    }
+    // Load more addresses
+    const loadMoreBtn = document.getElementById('load-more-addresses-btn');
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', loadMoreAddresses);
+    }
+    // Import seed phrase
+    const importSeedBtn = document.getElementById('import-seed-phrase-btn');
+    if (importSeedBtn) {
+        importSeedBtn.addEventListener('click', handleSeedPhraseImport);
+    }
+});
+// Make functions available globally
+window.validateMnemonicInput = validateMnemonicInput;
+window.continueToDerivationStep = continueToDerivationStep;
+window.goBackOneStep = goBackOneStep;
+window.previewDerivedAddresses = previewDerivedAddresses;
+window.loadMoreAddresses = loadMoreAddresses;
+window.handleSeedPhraseImport = handleSeedPhraseImport;
+window.handleDerivationPresetChange = handleDerivationPresetChange;
 export {};
 //# sourceMappingURL=script.js.map

@@ -49,31 +49,140 @@
 
             <section class="card">
                 <h2>Import Existing Keypair</h2>
-                <form id="import-form" class="form">
-                    <div class="form-group">
-                        <label for="import-name">Keypair Name:</label>
-                        <input type="text" id="import-name" required placeholder="e.g., imported-wallet">
+                
+                <!-- Step 1: Choose Import Method -->
+                <div id="import-method-selection" class="import-method-selection">
+                    <p class="section-intro">How would you like to import your keypair?</p>
+                    <div class="method-cards">
+                        <div class="method-card" id="method-private-key" onclick="selectImportMethod('private-key')">
+                            <div class="method-icon">🔑</div>
+                            <h3>Private Key</h3>
+                            <p>Import from an existing private key</p>
+                            <small>Base58, Base64, or JSON formats</small>
+                        </div>
+                        <div class="method-card" id="method-seed-phrase" onclick="selectImportMethod('seed-phrase')">
+                            <div class="method-icon">🌱</div>
+                            <h3>Seed Phrase</h3>
+                            <p>Import from BIP39 mnemonic</p>
+                            <small>12-24 word recovery phrase</small>
+                        </div>
                     </div>
+                </div>
+
+                <!-- Step 2a: Private Key Import Form -->
+                <form id="private-key-form" class="form import-branch" style="display: none;">
+                    <button type="button" class="btn btn-back" onclick="backToMethodSelection()">← Back to Methods</button>
+                    <h3>Import from Private Key</h3>
+                    
                     <div class="form-group">
-                        <label for="import-format">Private Key Format:</label>
-                        <select id="import-format" required>
-                            <option value="base58" selected>Base58 (Recommended)</option>
+                        <label for="pk-import-name">Keypair Name:</label>
+                        <input type="text" id="pk-import-name" required placeholder="e.g., my-wallet">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pk-format-select">Private Key Format:</label>
+                        <select id="pk-format-select" required>
+                            <option value="base58" selected>Base58 (Most Common)</option>
                             <option value="base64">Base64</option>
                             <option value="json">JSON Array</option>
                         </select>
-                        <small>Select the format of your private key</small>
+                        <small id="pk-format-hint">Base58 encoded (e.g., from Phantom, Solflare, Solana CLI)</small>
                     </div>
+                    
                     <div class="form-group">
-                        <label for="import-key">Private Key:</label>
-                        <textarea id="import-key" required placeholder="Enter your private key..." rows="3"></textarea>
-                        <small id="format-hint">Base58 encoded private key (e.g., from Phantom, Solflare)</small>
+                        <label for="pk-private-key">Private Key:</label>
+                        <textarea id="pk-private-key" required placeholder="Enter your private key..." rows="3"></textarea>
                     </div>
+                    
                     <div class="form-group">
-                        <label for="import-password">Password:</label>
-                        <input type="password" id="import-password" required placeholder="Enter a strong password">
+                        <label for="pk-import-password">Password:</label>
+                        <input type="password" id="pk-import-password" required placeholder="Enter a strong password">
+                        <small>This password will encrypt your keypair</small>
                     </div>
+                    
                     <button type="submit" class="btn btn-primary">Import Keypair</button>
                 </form>
+
+                <!-- Step 2b: Seed Phrase Import Form -->
+                <div id="seed-phrase-container" class="import-branch" style="display: none;">
+                    <!-- Step 2b-1: Enter Mnemonic -->
+                    <div id="mnemonic-step" class="import-step">
+                        <button type="button" class="btn btn-back" onclick="goBackOneStep()">← Back</button>
+                        <h3>Enter Your Seed Phrase</h3>
+                        <div class="form-group">
+                            <label for="mnemonic-input">Recovery Phrase:</label>
+                            <textarea id="mnemonic-input" placeholder="Enter 12, 15, 18, 21, or 24 words separated by spaces..." rows="3"></textarea>
+                            <div id="mnemonic-validation" class="validation-status"></div>
+                        </div>
+                        
+                        <div class="form-group passphrase-group">
+                            <label for="mnemonic-passphrase">Passphrase (Optional):</label>
+                            <input type="password" id="mnemonic-passphrase" placeholder="Leave empty if not used">
+                            <small>Only required if you used a passphrase when creating the wallet</small>
+                        </div>
+                        
+                        <button type="button" id="continue-to-derivation-btn" class="btn btn-primary" disabled>Continue</button>
+                    </div>
+                    
+                    <!-- Step 2b-2: Select Derivation Path -->
+                    <div id="derivation-step" class="import-step" style="display: none;">
+                        <button type="button" class="btn btn-back" onclick="goBackOneStep()">← Back</button>
+                        <h3>Select Derivation Path</h3>
+                        <div class="form-group">
+                            <label for="derivation-preset">Wallet Type:</label>
+                            <select id="derivation-preset">
+                                <option value="backpack">Backpack m/44'/501'/x'/0'</option>
+                                <option value="backpack-legacy">Backpack Legacy m/44'/501'/0'/0'/x'</option>
+                                <option value="solana-legacy">Solana Legacy m/44'/501'/x'</option>
+                                <option value="ledger-live">Ledger Live m/44'/501'/x'/0'/0'</option>
+                                <option value="custom">Custom Path...</option>
+                            </select>
+                            <small id="preset-description">Backpack wallet standard path</small>
+                        </div>
+                        
+                        <div id="custom-path-input-container" class="form-group" style="display: none;">
+                            <label for="custom-path-input">Custom Derivation Path:</label>
+                            <input type="text" id="custom-path-input" placeholder="m/44'/501'/0'/0'" value="m/44'/501'/{index}'">
+                            <small>Use {index} as placeholder for account number (0, 1, 2, etc.)</small>
+                        </div>
+                        
+                        <button type="button" id="preview-addresses-btn" class="btn btn-primary">Preview Addresses</button>
+                    </div>
+                    
+                    <!-- Step 2b-3: Select Address -->
+                    <div id="address-selection-step" class="import-step" style="display: none;">
+                        <button type="button" class="btn btn-back" onclick="goBackOneStep()">← Back</button>
+                        <h3>Select Address to Import</h3>
+                        <div id="address-preview-container">
+                            <table id="address-preview-table" class="address-table">
+                                <thead>
+                                    <tr>
+                                        <th>Select</th>
+                                        <th>Index</th>
+                                        <th>Path</th>
+                                        <th>Address</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="address-list">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="button" id="load-more-addresses-btn" class="btn btn-secondary btn-small">Load More Addresses</button>
+                        
+                        <div class="form-group" style="margin-top: 20px;">
+                            <label for="sp-import-name">Keypair Name:</label>
+                            <input type="text" id="sp-import-name" required placeholder="e.g., my-wallet">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="sp-import-password">Password:</label>
+                            <input type="password" id="sp-import-password" required placeholder="Enter a strong password">
+                        </div>
+                        
+                        <button type="button" id="import-seed-phrase-btn" class="btn btn-primary">Import Selected Address</button>
+                    </div>
+                </div>
             </section>
         </div>
 

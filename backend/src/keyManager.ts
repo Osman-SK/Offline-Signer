@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as CryptoJS from 'crypto-js';
 import * as bs58Module from 'bs58';
+import * as bip39 from 'bip39';
+import { derivePath } from 'ed25519-hd-key';
 
 const bs58 = (bs58Module as any).default || bs58Module;
 
@@ -249,4 +251,257 @@ export function getPublicKey(name: string): string {
 
   const keyData: KeypairFileData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
   return keyData.publicKey;
+}
+
+/**
+ * Validate BIP39 mnemonic and return validation result
+ * Non-blocking: returns warnings but allows proceeding
+ * @param mnemonic - The mnemonic phrase to validate
+ * @returns Validation result with word count and checksum status
+ */
+export function validateMnemonic(mnemonic: string): {
+  valid: boolean;
+  wordCount: number;
+  checksumValid: boolean;
+  message: string;
+} {
+  if (!mnemonic || !mnemonic.trim()) {
+    return {
+      valid: false,
+      wordCount: 0,
+      checksumValid: false,
+      message: 'Mnemonic is empty'
+    };
+  }
+
+  const words = mnemonic.trim().split(/\s+/);
+  const wordCount = words.length;
+
+  // Check word count
+  const validCounts = [12, 15, 18, 21, 24];
+  if (!validCounts.includes(wordCount)) {
+    return {
+      valid: false,
+      wordCount,
+      checksumValid: false,
+      message: `Invalid word count: ${wordCount}. Must be 12, 15, 18, 21, or 24 words.`
+    };
+  }
+
+  // Validate checksum (but don't block)
+  const checksumValid = bip39.validateMnemonic(mnemonic);
+  
+  if (!checksumValid) {
+    return {
+      valid: true, // Allow proceeding
+      wordCount,
+      checksumValid: false,
+      message: '⚠️ Warning: Invalid BIP39 checksum. Please verify your seed phrase.'
+    };
+  }
+
+  return {
+    valid: true,
+    wordCount,
+    checksumValid: true,
+    message: `✓ Valid ${wordCount}-word mnemonic`
+  };
+}
+
+/**
+ * Derivation path presets for different wallets
+ * All paths use hardened derivation (') as required by SLIP-0010 for Ed25519
+ */
+export const DERIVATION_PRESETS = {
+  'backpack': {
+    name: 'Backpack',
+    path: "m/44'/501'/{index}'/0'",
+    displayPath: "m/44'/501'/x'/0'",
+    description: 'Backpack wallet'
+  },
+  'backpack-legacy': {
+    name: 'Backpack Legacy',
+    path: "m/44'/501'/0'/0'/{index}'",
+    displayPath: "m/44'/501'/0'/0'/x'",
+    description: 'Backpack wallet legacy format'
+  },
+  'solana-legacy': {
+    name: 'Solana Legacy',
+    path: "m/44'/501'/{index}'",
+    displayPath: "m/44'/501'/x'",
+    description: 'Legacy Solana wallets'
+  },
+  'ledger-live': {
+    name: 'Ledger Live',
+    path: "m/44'/501'/{index}'/0'/0'",
+    displayPath: "m/44'/501'/x'/0'/0'",
+    description: 'Ledger hardware wallets'
+  }
+};
+
+/**
+ * Build derivation path from preset or custom path
+ * @param preset - Preset key or 'custom'
+ * @param customPath - Custom path (if preset is 'custom')
+ * @param index - Account index to substitute
+ * @returns Full derivation path
+ */
+function buildDerivationPath(
+  preset: string,
+  customPath: string = '',
+  index: number
+): string {
+  if (preset === 'custom') {
+    // Replace {index} placeholder in custom path
+    return customPath.replace(/\{index\}/g, index.toString());
+  }
+
+  const presetConfig = DERIVATION_PRESETS[preset as keyof typeof DERIVATION_PRESETS];
+  if (!presetConfig) {
+    throw new Error(`Unknown derivation preset: ${preset}`);
+  }
+
+  return presetConfig.path.replace(/{index}/g, index.toString());
+}
+
+/**
+ * Derive addresses from BIP39 mnemonic
+ * @param mnemonic - BIP39 mnemonic phrase
+ * @param passphrase - Optional BIP39 passphrase
+ * @param preset - Derivation preset ('solana-standard', 'ledger-live', 'phantom-legacy', or 'custom')
+ * @param customPath - Custom derivation path (if preset is 'custom')
+ * @param startIndex - Starting account index
+ * @param count - Number of addresses to derive
+ * @returns Array of derived addresses with index, path, and public key
+ */
+export function deriveAddressesFromMnemonic(
+  mnemonic: string,
+  passphrase: string = '',
+  preset: string = 'backpack',
+  customPath: string = '',
+  startIndex: number = 0,
+  count: number = 5
+): Array<{
+  index: number;
+  path: string;
+  publicKey: string;
+}> {
+  // Validate mnemonic
+  const validation = validateMnemonic(mnemonic);
+  if (!validation.valid) {
+    throw new Error(validation.message);
+  }
+
+  // Generate seed from mnemonic
+  const seed = bip39.mnemonicToSeedSync(mnemonic, passphrase);
+
+  const addresses: Array<{ index: number; path: string; publicKey: string }> = [];
+
+  for (let i = 0; i < count; i++) {
+    const index = startIndex + i;
+    
+    try {
+      // Build derivation path
+      const derivationPath = buildDerivationPath(preset, customPath, index);
+      
+      // Derive key using SLIP-0010 (Ed25519)
+      const derived = derivePath(derivationPath, seed.toString('hex'));
+      
+      // Create keypair from derived private key
+      const keypair = Keypair.fromSeed(derived.key);
+      
+      addresses.push({
+        index,
+        path: derivationPath,
+        publicKey: keypair.publicKey.toBase58()
+      });
+    } catch (error) {
+      console.error(`Failed to derive address at index ${index}:`, error);
+      // Continue with next index
+    }
+  }
+
+  return addresses;
+}
+
+/**
+ * Import a keypair derived from BIP39 mnemonic
+ * @param name - Name for the keypair
+ * @param mnemonic - BIP39 mnemonic phrase
+ * @param accountIndex - Account index to derive
+ * @param password - Password to encrypt the keypair
+ * @param passphrase - Optional BIP39 passphrase
+ * @param preset - Derivation preset
+ * @param customPath - Custom derivation path (if preset is 'custom')
+ * @returns Keypair info with public key
+ */
+export function importFromMnemonic(
+  name: string,
+  mnemonic: string,
+  accountIndex: number,
+  password: string,
+  passphrase: string = '',
+  preset: string = 'backpack',
+  customPath: string = ''
+): KeypairInfo {
+  if (!name || !password) {
+    throw new Error('Name and password are required');
+  }
+
+  if (accountIndex < 0) {
+    throw new Error('Account index must be non-negative');
+  }
+
+  const keyPath = path.join(KEYS_DIR, `${name}.json`);
+  if (fs.existsSync(keyPath)) {
+    throw new Error(`Keypair '${name}' already exists`);
+  }
+
+  // Validate mnemonic
+  const validation = validateMnemonic(mnemonic);
+  if (!validation.valid) {
+    throw new Error(validation.message);
+  }
+
+  try {
+    // Generate seed from mnemonic
+    const seed = bip39.mnemonicToSeedSync(mnemonic, passphrase);
+
+    // Build derivation path
+    const derivationPath = buildDerivationPath(preset, customPath, accountIndex);
+
+    // Derive key using SLIP-0010
+    const derived = derivePath(derivationPath, seed.toString('hex'));
+
+    // Create keypair from derived seed
+    const keypair = Keypair.fromSeed(derived.key);
+    const secretKey = Array.from(keypair.secretKey);
+
+    // Encrypt the secret key
+    const encrypted = CryptoJS.AES.encrypt(
+      JSON.stringify(secretKey),
+      password
+    ).toString();
+
+    // Save encrypted keypair
+    const keyData: KeypairFileData = {
+      name,
+      publicKey: keypair.publicKey.toBase58(),
+      encryptedSecretKey: encrypted,
+      importedAt: new Date().toISOString()
+    };
+
+    fs.writeFileSync(keyPath, JSON.stringify(keyData, null, 2));
+
+    return {
+      name,
+      publicKey: keypair.publicKey.toBase58(),
+      importedAt: keyData.importedAt
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("already exists")) {
+      throw error;
+    }
+    throw new Error(`Failed to import from mnemonic: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }

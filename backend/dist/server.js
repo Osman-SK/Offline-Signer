@@ -117,6 +117,53 @@ app.delete('/api/keys/:name', (req, res) => {
         res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
     }
 });
+// Mnemonic Import Endpoints
+// Validate mnemonic
+app.post('/api/keys/validate-mnemonic', (req, res) => {
+    try {
+        const { mnemonic } = req.body;
+        const validation = keyManager.validateMnemonic(mnemonic);
+        res.json({ success: true, validation });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+});
+// Get derivation path presets
+app.get('/api/keys/derivation-presets', (_req, res) => {
+    try {
+        res.json({ success: true, presets: keyManager.DERIVATION_PRESETS });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+});
+// Derive addresses from mnemonic
+app.post('/api/keys/derive-preview', (req, res) => {
+    try {
+        const { mnemonic, passphrase, preset, customPath, startIndex, count } = req.body;
+        const addresses = keyManager.deriveAddressesFromMnemonic(mnemonic, passphrase || '', preset || 'backpack', customPath || '', startIndex || 0, count || 5);
+        res.json({ success: true, addresses });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+});
+// Import from mnemonic
+app.post('/api/keys/import-mnemonic', (req, res) => {
+    try {
+        const { name, mnemonic, accountIndex, password, passphrase, preset, customPath } = req.body;
+        const keypair = keyManager.importFromMnemonic(name, mnemonic, accountIndex, password, passphrase || '', preset || 'backpack', customPath || '');
+        res.json({
+            success: true,
+            publicKey: keypair.publicKey,
+            message: 'Keypair imported successfully from mnemonic'
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+});
 // Transaction Processing
 app.post('/api/transaction/upload', upload.single('transaction'), (req, res) => {
     try {
@@ -183,10 +230,12 @@ app.post('/api/transaction/details', (req, res) => {
         res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
     }
 });
-// Start server
-app.listen(PORT, () => {
-    console.log(`Offline Signer Backend running on port ${PORT}`);
-    console.log(`Open http://localhost:${PORT} to access the signer`);
-});
+// Start server only if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+        console.log(`Offline Signer Backend running on port ${PORT}`);
+        console.log(`Open http://localhost:${PORT} to access the signer`);
+    });
+}
 exports.default = app;
 //# sourceMappingURL=server.js.map

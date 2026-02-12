@@ -92,6 +92,88 @@ app.delete('/api/keys/:name', (req: Request, res: Response) => {
   }
 });
 
+// Mnemonic Import Endpoints
+
+// Validate mnemonic
+app.post('/api/keys/validate-mnemonic', (req: Request, res: Response) => {
+  try {
+    const { mnemonic } = req.body as { mnemonic: string };
+    const validation = keyManager.validateMnemonic(mnemonic);
+    res.json({ success: true, validation });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// Get derivation path presets
+app.get('/api/keys/derivation-presets', (_req: Request, res: Response) => {
+  try {
+    res.json({ success: true, presets: keyManager.DERIVATION_PRESETS });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// Derive addresses from mnemonic
+app.post('/api/keys/derive-preview', (req: Request, res: Response) => {
+  try {
+    const { mnemonic, passphrase, preset, customPath, startIndex, count } = req.body as {
+      mnemonic: string;
+      passphrase?: string;
+      preset?: string;
+      customPath?: string;
+      startIndex?: number;
+      count?: number;
+    };
+
+    const addresses = keyManager.deriveAddressesFromMnemonic(
+      mnemonic,
+      passphrase || '',
+      preset || 'backpack',
+      customPath || '',
+      startIndex || 0,
+      count || 5
+    );
+
+    res.json({ success: true, addresses });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// Import from mnemonic
+app.post('/api/keys/import-mnemonic', (req: Request, res: Response) => {
+  try {
+    const { name, mnemonic, accountIndex, password, passphrase, preset, customPath } = req.body as {
+      name: string;
+      mnemonic: string;
+      accountIndex: number;
+      password: string;
+      passphrase?: string;
+      preset?: string;
+      customPath?: string;
+    };
+
+    const keypair = keyManager.importFromMnemonic(
+      name,
+      mnemonic,
+      accountIndex,
+      password,
+      passphrase || '',
+      preset || 'backpack',
+      customPath || ''
+    );
+
+    res.json({
+      success: true,
+      publicKey: keypair.publicKey,
+      message: 'Keypair imported successfully from mnemonic'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 // Transaction Processing
 app.post('/api/transaction/upload', upload.single('transaction'), (req: Request, res: Response) => {
   try {
