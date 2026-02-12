@@ -2,6 +2,8 @@
 
 **A consumer-ready, air-gapped Solana transaction signer with a simple browser interface.**
 
+Built with TypeScript for type safety and better developer experience.
+
 ## 🎯 Problem
 
 Standard wallet workflows require your private key on an internet-connected device, creating security risks for high-value operations. This tool provides true cold storage with a user-friendly interface.
@@ -15,6 +17,7 @@ Standard wallet workflows require your private key on an internet-connected devi
 - **💰 SOL & SPL Token Support**: Sign transfers for SOL and SPL tokens (USDC, USDT, etc.)
 - **📁 File-Based Transfer**: USB/external drive for moving unsigned and signed transactions
 - **✅ Approve/Decline Flow**: Clear user approval before any signature is created
+- **🔷 TypeScript**: Full type safety across the entire codebase
 
 ## 🚀 Quick Start
 
@@ -22,6 +25,7 @@ Standard wallet workflows require your private key on an internet-connected devi
 
 - Node.js (v18 or higher)
 - npm or pnpm
+- TypeScript (v5.0 or higher)
 
 ### Installation
 
@@ -31,19 +35,37 @@ git clone https://github.com/Osman-SK/Offline-Signer.git
 cd Offline-Signer
 ```
 
-2. **Install backend dependencies**:
+2. **Install dependencies**:
 ```bash
 cd backend
 npm install
 ```
 
-3. **Start the server**:
+3. **Compile TypeScript**:
 ```bash
+# Backend
+npm run build
+
+# Frontend
+cd ../frontend
+npx tsc
+```
+
+4. **Start the server**:
+```bash
+cd ../backend
 npm start
 ```
 
-4. **Open your browser**:
+5. **Open your browser**:
 Navigate to `http://localhost:3000`
+
+### Development Mode
+
+```bash
+cd backend
+npm run dev  # Uses ts-node for hot-reload
+```
 
 ## 📖 How It Works
 
@@ -58,7 +80,8 @@ Navigate to `http://localhost:3000`
 
 **Import Existing Keypair**:
 - Click "Import Existing Keypair"
-- Paste your private key (JSON array format)
+- Choose format: Base58 (default), Base64, or JSON Array
+- Paste your private key
 - Set a password for encryption
 - Your key is securely stored
 
@@ -84,40 +107,32 @@ Navigate to `http://localhost:3000`
 - Download the `signed-tx.json` file
 - Transfer this file to your online machine for broadcasting
 
-## 🔐 Security Model
-
-### Air-Gapped Operation
-- **No network calls during key generation or signing**
-- All cryptographic operations happen locally
-- Private keys encrypted at rest with AES-256
-
-### File-Based Transfer
-1. **Online Machine**: Create unsigned transaction → save to USB
-2. **Offline Machine**: Load transaction → review → sign → save to USB
-3. **Online Machine**: Load signed transaction → broadcast to network
-
-### Encryption
-- Private keys encrypted with password-based AES-256
-- Keys never stored in plaintext
-- Passwords never transmitted or logged
-
 ## 📁 Project Structure
 
 ```
 offline-signer/
-├── backend/                 # Node.js Express server
+├── backend/                 # TypeScript Node.js server
 │   ├── src/
-│   │   ├── server.js        # Main server and API routes
-│   │   ├── keyManager.js    # Key generation, import, encryption
-│   │   ├── txProcessor.js   # Transaction parsing and validation
-│   │   └── signer.js        # Transaction signing operations
-│   └── package.json
-├── frontend/                # Browser interface
+│   │   ├── server.ts        # Express server with typed routes
+│   │   ├── keyManager.ts    # Key generation, import, encryption
+│   │   ├── txProcessor.ts   # Transaction parsing and validation
+│   │   ├── signer.ts        # Transaction signing operations
+│   │   ├── types.ts         # TypeScript type definitions
+│   │   └── __tests__/       # Jest test suite (82 tests)
+│   ├── dist/                # Compiled JavaScript
+│   ├── keys/                # Encrypted keypairs (created at runtime)
+│   └── uploads/             # Transaction files (created at runtime)
+├── frontend/                # TypeScript browser interface
+│   ├── src/
+│   │   ├── script.ts        # Client-side logic with types
+│   │   └── types.ts         # Frontend type definitions
+│   ├── dist/                # Compiled JavaScript
 │   ├── index.html           # Main UI
-│   ├── style.css            # Clean, minimal styling
-│   └── script.js            # Client-side logic
-├── cli/                     # Reference CLI (from ChainflowSOL)
-└── README.md
+│   └── style.css            # Styling
+├── cli/                     # Reference CLI tool (TypeScript)
+├── types/                   # Shared TypeScript types
+│   └── index.ts             # Common type definitions
+└── README.md                # This file
 ```
 
 ## 🔧 API Endpoints
@@ -125,15 +140,36 @@ offline-signer/
 ### Key Management
 
 - `POST /api/keys/generate` - Generate new keypair
+  - Body: `{ name: string, password: string }`
+  - Response: `{ success: true, publicKey: string, message: string }`
+
 - `POST /api/keys/import` - Import existing keypair
+  - Body: `{ name: string, privateKey: string, password: string, format?: 'base58' | 'base64' | 'json' }`
+  - Response: `{ success: true, publicKey: string, message: string }`
+
 - `GET /api/keys` - List all keypairs (public keys only)
+  - Response: `{ success: true, keys: KeypairInfo[] }`
+
 - `DELETE /api/keys/:name` - Delete a keypair
+  - Response: `{ success: true, message: string }`
 
 ### Transaction Processing
 
 - `POST /api/transaction/upload` - Upload unsigned transaction
+  - Content-Type: `multipart/form-data`
+  - Field: `transaction` (file)
+  - Response: `{ success: true, transaction: ParsedTransaction, filePath: string }`
+
 - `POST /api/transaction/sign` - Sign transaction
+  - Body: `{ filePath: string, keyName: string, password: string, approve: boolean }`
+  - Response: `{ success: true, signature: string, publicKey: string, signedAt: string, downloadUrl: string }`
+
+- `POST /api/transaction/details` - Get transaction details
+  - Body: `{ filePath: string }`
+  - Response: `{ success: true, details: TransactionDetails }`
+
 - `GET /api/download/:filename` - Download signed transaction
+  - Returns: File download
 
 ## 🧪 Transaction Format
 
@@ -181,22 +217,171 @@ offline-signer/
 
 ## 🛠️ Development
 
-### Run in Development Mode
+### Available Scripts
+
+**Backend** (`cd backend`):
 ```bash
-cd backend
-npm run dev
+npm run dev        # Development with ts-node (hot reload)
+npm run build      # Compile TypeScript to JavaScript
+npm run typecheck  # Type checking without emit
+npm start          # Run compiled production code
+npm test           # Run Jest test suite
+npm test -- --coverage  # Run tests with coverage report
 ```
 
-### Technology Stack
-- **Backend**: Node.js, Express, @solana/web3.js, tweetnacl
-- **Frontend**: Pure HTML/CSS/JavaScript (no frameworks)
-- **Encryption**: CryptoJS (AES-256)
+**Frontend** (`cd frontend`):
+```bash
+npx tsc            # Compile TypeScript to JavaScript
+npx tsc --watch    # Watch mode for development
+```
+
+### TypeScript Development Workflow
+
+1. **Make changes** to `.ts` files in `src/`
+2. **Type check** before building:
+   ```bash
+   cd backend
+   npm run typecheck
+   ```
+3. **Compile** the code:
+   ```bash
+   # Backend
+   npm run build
+   
+   # Frontend
+   cd ../frontend && npx tsc
+   ```
+4. **Test** your changes:
+   ```bash
+   cd backend
+   NODE_ENV=test npm test
+   ```
+5. **Run** the application:
+   ```bash
+   npm run dev  # Development
+   # or
+   npm start    # Production
+   ```
+
+### Private Key Import Formats
+
+The system supports three private key formats:
+
+1. **Base58** (default) - Most common, used by Phantom, Solflare, Solana CLI
+
+2. **Base64** - Base64 encoded byte array
+
+3. **JSON Array** - Array of byte values
+
+## 🔧 Configuration
+
+### Backend TypeScript Configuration
+
+`backend/tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  }
+}
+```
+
+### Frontend TypeScript Configuration
+
+`frontend/tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "moduleResolution": "node"
+  }
+}
+```
+
+## 🧪 Testing
+
+The project includes a comprehensive test suite with **82 tests** covering all major functionality.
+
+### Running Tests
+
+```bash
+cd backend
+
+# Run all tests
+npm test
+
+# Run with coverage
+npm test -- --coverage
+
+# Run in watch mode
+npm test -- --watch
+
+# Run specific test file
+npm test -- keyManager.test.ts
+
+# Run tests without starting server
+NODE_ENV=test npm test
+```
+
+### Test Coverage
+
+- **keyManager.ts**: Keypair generation, import, encryption (24 tests)
+- **txProcessor.ts**: Transaction parsing, validation (22 tests)
+- **signer.ts**: Transaction signing, verification (18 tests)
+- **API endpoints**: Full integration tests (18 tests)
+
+## 🏗️ Technology Stack
+
+- **Language**: TypeScript 5.x with strict mode
+- **Backend**: Node.js 18+, Express.js
+- **Frontend**: TypeScript with vanilla HTML/CSS (no frameworks)
+- **Solana**: @solana/web3.js, @solana/spl-token
+- **Cryptography**: tweetnacl (Ed25519 signatures), CryptoJS (AES-256 encryption)
+- **Encoding**: bs58 (Base58), native Buffer (Base64)
+- **Build**: TypeScript Compiler (tsc), ts-node (development)
+- **Testing**: Jest with ts-jest, Supertest (API testing)
 - **Security**: Air-gapped design, file-based transfer
+
+## 🔐 Security Model
+
+### Air-Gapped Operation
+- **No network calls during key generation or signing**
+- All cryptographic operations happen locally
+- Private keys encrypted at rest with AES-256
+
+### File-Based Transfer
+1. **Online Machine**: Create unsigned transaction → save to USB
+2. **Offline Machine**: Load transaction → review → sign → save to USB
+3. **Online Machine**: Load signed transaction → broadcast to network
+
+### Encryption
+- Private keys encrypted with password-based AES-256
+- Keys never stored in plaintext
+- Passwords never transmitted or logged
 
 ## 🔗 Compatibility
 
 ### CLI Compatibility
-This project is compatible with the transaction format used by:
+Compatible with transaction format from:
 - [offline-signing-cli](https://github.com/ChainflowSOL/offline-signing-cli)
 
 You can create transactions using the CLI and sign them with this browser interface (or vice versa).
@@ -208,12 +393,14 @@ You can create transactions using the CLI and sign them with this browser interf
 
 ## 📝 Roadmap
 
-### Phase 1 (Current - Hackathon MVP)
+### Phase 1 (Current - MVP)
 - ✅ Offline key generation and storage
 - ✅ Browser-based signing interface
 - ✅ SOL and SPL token support
 - ✅ File-based transaction transfer
 - ✅ Human-readable transaction display
+- ✅ TypeScript migration
+- ✅ Comprehensive test suite (82 tests)
 
 ### Phase 2 (Post-Hackathon)
 - Hardware extension (SD card or USB device)
@@ -240,6 +427,37 @@ This project was built for the [Colosseum Agent Hackathon](https://colosseum.com
 - **Verify transactions**: Always review transaction details before signing
 - **Test on devnet first**: Verify your workflow with devnet before using on mainnet
 
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Port already in use**:
+```bash
+# Kill process on port 3000
+lsof -ti:3000 | xargs kill -9
+```
+
+**TypeScript compilation errors**:
+```bash
+cd backend
+npm run typecheck  # Check types
+npm run clean      # Clean dist folder
+npm run build      # Rebuild
+```
+
+**Missing dependencies**:
+```bash
+rm -rf node_modules package-lock.json
+npm install
+```
+
+**Module not found errors**:
+```bash
+# Rebuild TypeScript
+cd backend && npm run build
+cd ../frontend && npx tsc
+```
+
 ## 📄 License
 
 Apache 2.0 License (compatible with reference CLI)
@@ -252,7 +470,7 @@ Apache 2.0 License (compatible with reference CLI)
 
 ## 📞 Support
 
-For issues or questions, please open an issue on GitHub or reach out on the Colosseum forum.
+For issues or questions, please open an issue on GitHub, reach out on the Colosseum forum, or DM on X: @OSK546.
 
 ---
 
