@@ -1,19 +1,88 @@
-const { VersionedMessage, PublicKey, LAMPORTS_PER_SOL } = require('@solana/web3.js');
-const fs = require('fs');
-const path = require('path');
+import { VersionedMessage } from '@solana/web3.js';
+import * as fs from 'fs';
+
+/**
+ * Account information extracted from transaction
+ */
+interface AccountInfo {
+  index: number;
+  pubkey: string;
+  pubkeyShort: string;
+}
+
+/**
+ * Instruction information extracted from transaction
+ */
+interface InstructionInfo {
+  index: number;
+  programId: string;
+  programIdShort: string;
+  accounts: number[];
+  data: string;
+}
+
+/**
+ * Human-readable transaction details
+ */
+interface TransactionDetails {
+  network: string;
+  description: string;
+  feePayer: string;
+  type: string;
+  amount?: number;
+  tokenSymbol?: string;
+  decimals?: number;
+  amountFormatted?: string;
+  accounts: AccountInfo[];
+  instructions: InstructionInfo[];
+}
+
+/**
+ * Unsigned transaction file format
+ */
+interface UnsignedTransaction {
+  description: string;
+  network: string;
+  messageBase64: string;
+  meta?: {
+    tokenSymbol: string;
+    decimals: number;
+    amount: number;
+  };
+}
+
+/**
+ * Parsed transaction data with deserialized message
+ */
+interface ParsedTransaction extends UnsignedTransaction {
+  messageBuffer: Buffer;
+  message: VersionedMessage;
+  details: TransactionDetails;
+  rawFilePath: string;
+}
+
+/**
+ * Transaction parties
+ */
+interface TransactionParties {
+  sender: string;
+  senderShort: string;
+  recipient: string | null;
+  recipientShort: string | null;
+}
 
 /**
  * Parse transaction file (unsigned-tx.json format)
- * @param {string} filePath - Path to transaction file
- * @returns {object} - Parsed transaction data
+ * @param filePath - Path to transaction file
+ * @returns Parsed transaction data
  */
-function parseTransactionFile(filePath) {
+export function parseTransactionFile(filePath: string): ParsedTransaction {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Transaction file not found: ${filePath}`);
   }
 
   const fileContent = fs.readFileSync(filePath, 'utf-8');
-  let txData;
+  let txData: UnsignedTransaction;
   
   try {
     txData = JSON.parse(fileContent);
@@ -39,32 +108,36 @@ function parseTransactionFile(filePath) {
 
   return {
     ...txData,
-    messageBuffer: messageBuffer,
-    message: message,
-    details: details,
+    messageBuffer,
+    message,
+    details,
     rawFilePath: filePath
   };
 }
 
 /**
  * Extract human-readable transaction details
- * @param {VersionedMessage} message - Deserialized transaction message
- * @param {object} txData - Original transaction data
- * @returns {object} - Human-readable details
+ * @param message - Deserialized transaction message
+ * @param txData - Original transaction data
+ * @returns Human-readable details
  */
-function extractTransactionDetails(message, txData) {
-  const details = {
+function extractTransactionDetails(
+  message: VersionedMessage,
+  txData: UnsignedTransaction
+): TransactionDetails {
+  const details: TransactionDetails = {
     network: txData.network.toUpperCase(),
     description: txData.description || 'Unknown transaction',
     feePayer: message.staticAccountKeys[0].toBase58(),
     instructions: [],
-    accounts: []
+    accounts: [],
+    type: 'Unknown'
   };
 
   // Extract account keys
   message.staticAccountKeys.forEach((key, index) => {
     details.accounts.push({
-      index: index,
+      index,
       pubkey: key.toBase58(),
       pubkeyShort: shortenAddress(key.toBase58())
     });
@@ -105,11 +178,14 @@ function extractTransactionDetails(message, txData) {
 
 /**
  * Identify transaction type
- * @param {VersionedMessage} message - Transaction message
- * @param {object} txData - Transaction data
- * @returns {string} - Transaction type
+ * @param message - Transaction message
+ * @param txData - Transaction data
+ * @returns Transaction type
  */
-function identifyTransactionType(message, txData) {
+function identifyTransactionType(
+  _message: VersionedMessage,
+  txData: UnsignedTransaction
+): string {
   if (txData.meta?.tokenSymbol === 'SOL') {
     return 'SOL Transfer';
   } else if (txData.meta?.tokenSymbol) {
@@ -123,32 +199,32 @@ function identifyTransactionType(message, txData) {
 
 /**
  * Shorten an address for display
- * @param {string} address - Full address
- * @returns {string} - Shortened address
+ * @param address - Full address
+ * @returns Shortened address
  */
-function shortenAddress(address) {
+export function shortenAddress(address: string): string {
   if (!address || address.length < 10) return address;
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
 /**
  * Get transaction details for display
- * @param {string} filePath - Path to transaction file
- * @returns {object} - Transaction details
+ * @param filePath - Path to transaction file
+ * @returns Transaction details
  */
-function getTransactionDetails(filePath) {
+export function getTransactionDetails(filePath: string): TransactionDetails {
   const txData = parseTransactionFile(filePath);
   return txData.details;
 }
 
 /**
  * Validate transaction file format
- * @param {string} filePath - Path to transaction file
- * @returns {boolean} - True if valid
+ * @param filePath - Path to transaction file
+ * @returns True if valid
  */
-function validateTransactionFile(filePath) {
+export function validateTransactionFile(filePath: string): boolean {
   try {
-    const txData = parseTransactionFile(filePath);
+    parseTransactionFile(filePath);
     return true;
   } catch (error) {
     return false;
@@ -157,17 +233,17 @@ function validateTransactionFile(filePath) {
 
 /**
  * Extract sender and recipient from transaction
- * @param {object} txData - Parsed transaction data
- * @returns {object} - Sender and recipient info
+ * @param txData - Parsed transaction data
+ * @returns Sender and recipient info
  */
-function extractParties(txData) {
+export function extractParties(txData: ParsedTransaction): TransactionParties {
   const message = txData.message;
   
   // Fee payer is typically the sender
   const sender = message.staticAccountKeys[0].toBase58();
   
   // Recipient is typically in the instructions
-  let recipient = null;
+  let recipient: string | null = null;
   
   // For simple transfers, recipient is usually the second account
   if (message.staticAccountKeys.length > 1) {
@@ -175,18 +251,9 @@ function extractParties(txData) {
   }
 
   return {
-    sender: sender,
+    sender,
     senderShort: shortenAddress(sender),
-    recipient: recipient,
+    recipient,
     recipientShort: recipient ? shortenAddress(recipient) : null
   };
 }
-
-module.exports = {
-  parseTransactionFile,
-  getTransactionDetails,
-  validateTransactionFile,
-  extractTransactionDetails,
-  extractParties,
-  shortenAddress
-};

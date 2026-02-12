@@ -1,9 +1,10 @@
-const { Keypair } = require('@solana/web3.js');
-const fs = require('fs');
-const path = require('path');
-const CryptoJS = require('crypto-js');
-const bs58Module = require('bs58');
-const bs58 = bs58Module.default || bs58Module;
+import { Keypair } from '@solana/web3.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as CryptoJS from 'crypto-js';
+import * as bs58Module from 'bs58';
+
+const bs58 = (bs58Module as any).default || bs58Module;
 
 const KEYS_DIR = path.join(__dirname, '../keys');
 
@@ -13,12 +14,33 @@ if (!fs.existsSync(KEYS_DIR)) {
 }
 
 /**
- * Generate a new keypair
- * @param {string} name - Name for the keypair
- * @param {string} password - Password to encrypt the keypair
- * @returns {object} - Keypair info with public key
+ * Keypair file data structure
  */
-function generateKeypair(name, password) {
+interface KeypairFileData {
+  name: string;
+  publicKey: string;
+  encryptedSecretKey: string;
+  createdAt?: string;
+  importedAt?: string;
+}
+
+/**
+ * Keypair information (without sensitive data)
+ */
+interface KeypairInfo {
+  name: string;
+  publicKey: string;
+  createdAt?: string;
+  importedAt?: string;
+}
+
+/**
+ * Generate a new keypair
+ * @param name - Name for the keypair
+ * @param password - Password to encrypt the keypair
+ * @returns Keypair info with public key
+ */
+export function generateKeypair(name: string, password: string): KeypairInfo {
   if (!name || !password) {
     throw new Error('Name and password are required');
   }
@@ -39,7 +61,7 @@ function generateKeypair(name, password) {
   ).toString();
 
   // Save encrypted keypair
-  const keyData = {
+  const keyData: KeypairFileData = {
     name,
     publicKey: keypair.publicKey.toBase58(),
     encryptedSecretKey: encrypted,
@@ -57,13 +79,18 @@ function generateKeypair(name, password) {
 
 /**
  * Import an existing keypair
- * @param {string} name - Name for the keypair
- * @param {string} privateKey - Private key in specified format
- * @param {string} password - Password to encrypt the keypair
- * @param {string} format - Format of private key: 'base58' (default), 'base64', or 'json'
- * @returns {object} - Keypair info with public key
+ * @param name - Name for the keypair
+ * @param privateKey - Private key in specified format
+ * @param password - Password to encrypt the keypair
+ * @param format - Format of private key: 'base58' (default), 'base64', or 'json'
+ * @returns Keypair info with public key
  */
-function importKeypair(name, privateKey, password, format = 'base58') {
+export function importKeypair(
+  name: string,
+  privateKey: string,
+  password: string,
+  format: 'base58' | 'base64' | 'json' = 'base58'
+): KeypairInfo {
   if (!name || !privateKey || !password) {
     throw new Error('Name, private key, and password are required');
   }
@@ -73,7 +100,7 @@ function importKeypair(name, privateKey, password, format = 'base58') {
     throw new Error(`Keypair '${name}' already exists`);
   }
 
-  let secretKey;
+  let secretKey: number[];
   try {
     switch (format.toLowerCase()) {
       case 'base58':
@@ -88,24 +115,25 @@ function importKeypair(name, privateKey, password, format = 'base58') {
       
       case 'json':
         // JSON array format
-        secretKey = JSON.parse(privateKey);
-        if (!Array.isArray(secretKey)) {
+        const parsed = JSON.parse(privateKey);
+        if (!Array.isArray(parsed)) {
           throw new Error('Invalid JSON format: must be an array of numbers');
         }
+        secretKey = parsed;
         break;
       
       default:
         throw new Error(`Unknown format: ${format}. Use 'base58', 'base64', or 'json'`);
     }
   } catch (error) {
-    if (error.message.includes('Unknown format')) {
+    if (error instanceof Error && error.message.includes('Unknown format')) {
       throw error;
     }
-    throw new Error(`Failed to decode private key: ${error.message}`);
+    throw new Error(`Failed to decode private key: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   // Verify it's a valid keypair
-  let keypair;
+  let keypair: Keypair;
   try {
     keypair = Keypair.fromSecretKey(Uint8Array.from(secretKey));
   } catch (error) {
@@ -119,7 +147,7 @@ function importKeypair(name, privateKey, password, format = 'base58') {
   ).toString();
 
   // Save encrypted keypair
-  const keyData = {
+  const keyData: KeypairFileData = {
     name,
     publicKey: keypair.publicKey.toBase58(),
     encryptedSecretKey: encrypted,
@@ -137,11 +165,11 @@ function importKeypair(name, privateKey, password, format = 'base58') {
 
 /**
  * Load a keypair with password
- * @param {string} name - Name of the keypair
- * @param {string} password - Password to decrypt the keypair
- * @returns {Keypair} - Solana Keypair object
+ * @param name - Name of the keypair
+ * @param password - Password to decrypt the keypair
+ * @returns Solana Keypair object
  */
-function loadKeypair(name, password) {
+export function loadKeypair(name: string, password: string): Keypair {
   if (!name || !password) {
     throw new Error('Name and password are required');
   }
@@ -151,12 +179,11 @@ function loadKeypair(name, password) {
     throw new Error(`Keypair '${name}' not found`);
   }
 
-  const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
+  const keyData: KeypairFileData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
   
   // Decrypt the secret key
-  let decrypted;
   try {
-    decrypted = CryptoJS.AES.decrypt(keyData.encryptedSecretKey, password);
+    const decrypted = CryptoJS.AES.decrypt(keyData.encryptedSecretKey, password);
     const secretKeyString = decrypted.toString(CryptoJS.enc.Utf8);
     if (!secretKeyString) {
       throw new Error('Invalid password');
@@ -170,20 +197,20 @@ function loadKeypair(name, password) {
 
 /**
  * List all keypairs (without private keys)
- * @returns {Array} - Array of keypair info objects
+ * @returns Array of keypair info objects
  */
-function listKeypairs() {
+export function listKeypairs(): KeypairInfo[] {
   if (!fs.existsSync(KEYS_DIR)) {
     return [];
   }
 
   const files = fs.readdirSync(KEYS_DIR);
-  const keypairs = [];
+  const keypairs: KeypairInfo[] = [];
 
   for (const file of files) {
     if (file.endsWith('.json')) {
       const keyPath = path.join(KEYS_DIR, file);
-      const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
+      const keyData: KeypairFileData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
       keypairs.push({
         name: keyData.name,
         publicKey: keyData.publicKey,
@@ -198,9 +225,9 @@ function listKeypairs() {
 
 /**
  * Delete a keypair
- * @param {string} name - Name of the keypair to delete
+ * @param name - Name of the keypair to delete
  */
-function deleteKeypair(name) {
+export function deleteKeypair(name: string): void {
   const keyPath = path.join(KEYS_DIR, `${name}.json`);
   if (!fs.existsSync(keyPath)) {
     throw new Error(`Keypair '${name}' not found`);
@@ -211,24 +238,15 @@ function deleteKeypair(name) {
 
 /**
  * Get public key for a keypair
- * @param {string} name - Name of the keypair
- * @returns {string} - Public key (base58)
+ * @param name - Name of the keypair
+ * @returns Public key (base58)
  */
-function getPublicKey(name) {
+export function getPublicKey(name: string): string {
   const keyPath = path.join(KEYS_DIR, `${name}.json`);
   if (!fs.existsSync(keyPath)) {
     throw new Error(`Keypair '${name}' not found`);
   }
 
-  const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
+  const keyData: KeypairFileData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
   return keyData.publicKey;
 }
-
-module.exports = {
-  generateKeypair,
-  importKeypair,
-  loadKeypair,
-  listKeypairs,
-  deleteKeypair,
-  getPublicKey
-};
