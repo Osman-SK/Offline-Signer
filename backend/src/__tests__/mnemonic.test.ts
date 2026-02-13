@@ -10,7 +10,6 @@ const VALID_MNEMONIC_24 = 'abandon abandon abandon abandon abandon abandon aband
 const INVALID_WORD_COUNT = 'abandon abandon abandon';
 const INVALID_CHECKSUM = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon';
 
-const TEST_PASSWORD = 'test-password-123';
 const TEST_KEYPAIR_NAME = 'test-mnemonic-keypair';
 
 describe('Mnemonic Import', () => {
@@ -248,10 +247,10 @@ describe('Mnemonic Import', () => {
         TEST_KEYPAIR_NAME,
         VALID_MNEMONIC_12,
         0,
-        TEST_PASSWORD,
         '',
         'backpack',
-        ''
+        '',
+        true
       );
 
       expect(result.name).toBe(TEST_KEYPAIR_NAME);
@@ -265,10 +264,10 @@ describe('Mnemonic Import', () => {
         TEST_KEYPAIR_NAME,
         VALID_MNEMONIC_12,
         0,
-        TEST_PASSWORD,
         'my-secret-passphrase',
         'backpack',
-        ''
+        '',
+        true
       );
 
       expect(result.publicKey).toBeDefined();
@@ -279,10 +278,10 @@ describe('Mnemonic Import', () => {
         TEST_KEYPAIR_NAME,
         VALID_MNEMONIC_12,
         5,
-        TEST_PASSWORD,
         '',
         'custom',
-        "m/44'/501'/{index}'/0'/0'"
+        "m/44'/501'/{index}'/0'/0'",
+        true
       );
 
       expect(result.publicKey).toBeDefined();
@@ -294,10 +293,10 @@ describe('Mnemonic Import', () => {
         `${TEST_KEYPAIR_NAME}-0`,
         VALID_MNEMONIC_12,
         0,
-        TEST_PASSWORD,
         '',
         'backpack',
-        ''
+        '',
+        true
       );
 
       // Import account 1
@@ -305,10 +304,10 @@ describe('Mnemonic Import', () => {
         `${TEST_KEYPAIR_NAME}-1`,
         VALID_MNEMONIC_12,
         1,
-        TEST_PASSWORD,
         '',
         'backpack',
-        ''
+        '',
+        true
       );
 
       const keypair0 = keyManager.getPublicKey(`${TEST_KEYPAIR_NAME}-0`);
@@ -328,26 +327,12 @@ describe('Mnemonic Import', () => {
           '',
           VALID_MNEMONIC_12,
           0,
-          TEST_PASSWORD,
           '',
           'backpack',
-          ''
-        );
-      }).toThrow('Name and password are required');
-    });
-
-    it('should throw error for missing password', () => {
-      expect(() => {
-        keyManager.importFromMnemonic(
-          TEST_KEYPAIR_NAME,
-          VALID_MNEMONIC_12,
-          0,
           '',
-          '',
-          'backpack',
-          ''
+          true
         );
-      }).toThrow('Name and password are required');
+      }).toThrow('Name is required');
     });
 
     it('should throw error for negative account index', () => {
@@ -356,10 +341,10 @@ describe('Mnemonic Import', () => {
           TEST_KEYPAIR_NAME,
           VALID_MNEMONIC_12,
           -1,
-          TEST_PASSWORD,
           '',
           'backpack',
-          ''
+          '',
+          true
         );
       }).toThrow('Account index must be non-negative');
     });
@@ -370,10 +355,10 @@ describe('Mnemonic Import', () => {
         TEST_KEYPAIR_NAME,
         VALID_MNEMONIC_12,
         0,
-        TEST_PASSWORD,
         '',
         'backpack',
-        ''
+        '',
+        true
       );
 
       // Second import with same name should fail
@@ -382,10 +367,10 @@ describe('Mnemonic Import', () => {
           TEST_KEYPAIR_NAME,
           VALID_MNEMONIC_12,
           1,
-          TEST_PASSWORD,
           '',
           'backpack',
-          ''
+          '',
+          true
         );
       }).toThrow('already exists');
     });
@@ -396,10 +381,10 @@ describe('Mnemonic Import', () => {
           TEST_KEYPAIR_NAME,
           INVALID_WORD_COUNT,
           0,
-          TEST_PASSWORD,
           '',
           'backpack',
-          ''
+          '',
+          true
         );
       }).toThrow('Invalid word count');
     });
@@ -409,13 +394,13 @@ describe('Mnemonic Import', () => {
         TEST_KEYPAIR_NAME,
         VALID_MNEMONIC_12,
         0,
-        TEST_PASSWORD,
         '',
         'backpack',
-        ''
+        '',
+        true
       );
 
-      const loaded = keyManager.loadKeypair(TEST_KEYPAIR_NAME, TEST_PASSWORD);
+      const loaded = keyManager.loadKeypair(TEST_KEYPAIR_NAME);
       
       expect(loaded).toBeDefined();
       expect(loaded.publicKey.toBase58()).toBeDefined();

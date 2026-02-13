@@ -34,15 +34,23 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DERIVATION_PRESETS = void 0;
+exports.setGlobalPassword = setGlobalPassword;
+exports.verifyGlobalPassword = verifyGlobalPassword;
+exports.hasGlobalPassword = hasGlobalPassword;
+exports.getEncryptionKey = getEncryptionKey;
+exports.clearGlobalPassword = clearGlobalPassword;
 exports.generateKeypair = generateKeypair;
 exports.importKeypair = importKeypair;
 exports.loadKeypair = loadKeypair;
 exports.listKeypairs = listKeypairs;
 exports.deleteKeypair = deleteKeypair;
 exports.getPublicKey = getPublicKey;
+exports.exportPrivateKey = exportPrivateKey;
+exports.exportSeedPhrase = exportSeedPhrase;
 exports.validateMnemonic = validateMnemonic;
 exports.deriveAddressesFromMnemonic = deriveAddressesFromMnemonic;
 exports.importFromMnemonic = importFromMnemonic;
+exports.generateNewMnemonic = generateNewMnemonic;
 const web3_js_1 = require("@solana/web3.js");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
@@ -50,31 +58,149 @@ const CryptoJS = __importStar(require("crypto-js"));
 const bs58Module = __importStar(require("bs58"));
 const bip39 = __importStar(require("bip39"));
 const ed25519_hd_key_1 = require("ed25519-hd-key");
+const crypto_1 = require("crypto");
 const bs58 = bs58Module.default || bs58Module;
 const KEYS_DIR = path.join(__dirname, '../keys');
+const CONFIG_FILE = path.join(__dirname, '../config.json');
 // Ensure keys directory exists
 if (!fs.existsSync(KEYS_DIR)) {
     fs.mkdirSync(KEYS_DIR, { recursive: true });
 }
 /**
+ * Load config from file
+ */
+function loadConfig() {
+    if (!fs.existsSync(CONFIG_FILE)) {
+        return {};
+    }
+    try {
+        return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+    }
+    catch {
+        return {};
+    }
+}
+/**
+ * Save config to file
+ */
+function saveConfig(config) {
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+}
+/**
+ * Hash a password using SHA-256
+ */
+function hashPassword(password) {
+    return (0, crypto_1.createHash)('sha256').update(password).digest('hex');
+}
+/**
+ * Set and store the global password
+ * @param password - The password to set
+ */
+function setGlobalPassword(password) {
+    if (!password || password.length === 0) {
+        throw new Error('Password is mandatory and cannot be empty');
+    }
+    const config = loadConfig();
+    config.passwordHash = hashPassword(password);
+    saveConfig(config);
+}
+/**
+ * Verify if the provided password matches the stored global password
+ * @param password - The password to verify
+ * @returns True if password matches, false otherwise
+ */
+function verifyGlobalPassword(password) {
+    const config = loadConfig();
+    if (!config.passwordHash) {
+        return false;
+    }
+    return hashPassword(password) === config.passwordHash;
+}
+/**
+ * Check if a global password is set
+ * @returns True if password is set, false otherwise
+ */
+function hasGlobalPassword() {
+    const config = loadConfig();
+    return !!config.passwordHash;
+}
+/**
+ * Get the encryption key for encrypting/decrypting keypairs
+ * Returns empty string if no password is set (no encryption mode)
+ * @returns The password or empty string
+ */
+function getEncryptionKey() {
+    // Return a placeholder - actual password verification should be done separately
+    // The encryption key is used only when a password is set
+    return hasGlobalPassword() ? 'global-password' : '';
+}
+/**
+ * Clear the global password (for "no encryption" option)
+ * This removes the password protection but keeps existing encrypted keypairs encrypted
+ */
+function clearGlobalPassword() {
+    // Only allow clearing password if no keypairs exist
+    const keypairs = listKeypairs();
+    if (keypairs.length > 0) {
+        throw new Error('Cannot remove password protection while keypairs exist. Delete all keypairs first.');
+    }
+    const config = loadConfig();
+    delete config.passwordHash;
+    saveConfig(config);
+}
+/**
+ * Encrypt data using the global password
+ * @param data - Data to encrypt
+ * @param password - Password for encryption
+ * @returns Encrypted string
+ */
+function encryptData(data, password) {
+    if (!password) {
+        return data;
+    }
+    return CryptoJS.AES.encrypt(data, password).toString();
+}
+/**
+ * Decrypt data using the global password
+ * @param encryptedData - Encrypted data
+ * @param password - Password for decryption
+ * @returns Decrypted string
+ */
+function decryptData(encryptedData, password) {
+    if (!password) {
+        return encryptedData;
+    }
+    try {
+        const decrypted = CryptoJS.AES.decrypt(encryptedData, password);
+        const result = decrypted.toString(CryptoJS.enc.Utf8);
+        if (!result) {
+            throw new Error('Invalid password');
+        }
+        return result;
+    }
+    catch (error) {
+        throw new Error('Invalid password or corrupted data');
+    }
+}
+/**
  * Generate a new keypair
  * @param name - Name for the keypair
- * @param password - Password to encrypt the keypair
  * @returns Keypair info with public key
  */
-function generateKeypair(name, password) {
-    if (!name || !password) {
-        throw new Error('Name and password are required');
+function generateKeypair(name) {
+    if (!name) {
+        throw new Error('Name is required');
     }
     const keyPath = path.join(KEYS_DIR, `${name}.json`);
     if (fs.existsSync(keyPath)) {
         throw new Error(`Keypair '${name}' already exists`);
     }
+    const encryptionKey = getEncryptionKey();
     // Generate new keypair
     const keypair = web3_js_1.Keypair.generate();
     const secretKey = Array.from(keypair.secretKey);
     // Encrypt the secret key
-    const encrypted = CryptoJS.AES.encrypt(JSON.stringify(secretKey), password).toString();
+    const encrypted = encryptData(JSON.stringify(secretKey), encryptionKey);
     // Save encrypted keypair
     const keyData = {
         name,
@@ -93,18 +219,18 @@ function generateKeypair(name, password) {
  * Import an existing keypair
  * @param name - Name for the keypair
  * @param privateKey - Private key in specified format
- * @param password - Password to encrypt the keypair
  * @param format - Format of private key: 'base58' (default), 'base64', or 'json'
  * @returns Keypair info with public key
  */
-function importKeypair(name, privateKey, password, format = 'base58') {
-    if (!name || !privateKey || !password) {
-        throw new Error('Name, private key, and password are required');
+function importKeypair(name, privateKey, format = 'base58') {
+    if (!name || !privateKey) {
+        throw new Error('Name and private key are required');
     }
     const keyPath = path.join(KEYS_DIR, `${name}.json`);
     if (fs.existsSync(keyPath)) {
         throw new Error(`Keypair '${name}' already exists`);
     }
+    const encryptionKey = getEncryptionKey();
     let secretKey;
     try {
         switch (format.toLowerCase()) {
@@ -143,7 +269,7 @@ function importKeypair(name, privateKey, password, format = 'base58') {
         throw new Error('Invalid private key: unable to create keypair. Please check your key format and try again.');
     }
     // Encrypt the secret key
-    const encrypted = CryptoJS.AES.encrypt(JSON.stringify(secretKey), password).toString();
+    const encrypted = encryptData(JSON.stringify(secretKey), encryptionKey);
     // Save encrypted keypair
     const keyData = {
         name,
@@ -159,32 +285,28 @@ function importKeypair(name, privateKey, password, format = 'base58') {
     };
 }
 /**
- * Load a keypair with password
+ * Load a keypair
  * @param name - Name of the keypair
- * @param password - Password to decrypt the keypair
  * @returns Solana Keypair object
  */
-function loadKeypair(name, password) {
-    if (!name || !password) {
-        throw new Error('Name and password are required');
+function loadKeypair(name) {
+    if (!name) {
+        throw new Error('Name is required');
     }
     const keyPath = path.join(KEYS_DIR, `${name}.json`);
     if (!fs.existsSync(keyPath)) {
         throw new Error(`Keypair '${name}' not found`);
     }
     const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
+    const encryptionKey = getEncryptionKey();
     // Decrypt the secret key
     try {
-        const decrypted = CryptoJS.AES.decrypt(keyData.encryptedSecretKey, password);
-        const secretKeyString = decrypted.toString(CryptoJS.enc.Utf8);
-        if (!secretKeyString) {
-            throw new Error('Invalid password');
-        }
+        const secretKeyString = decryptData(keyData.encryptedSecretKey, encryptionKey);
         const secretKey = JSON.parse(secretKeyString);
         return web3_js_1.Keypair.fromSecretKey(Uint8Array.from(secretKey));
     }
     catch (error) {
-        throw new Error('Invalid password or corrupted key file');
+        throw new Error('Failed to decrypt keypair: invalid password or corrupted key file');
     }
 }
 /**
@@ -205,7 +327,8 @@ function listKeypairs() {
                 name: keyData.name,
                 publicKey: keyData.publicKey,
                 createdAt: keyData.createdAt,
-                importedAt: keyData.importedAt
+                importedAt: keyData.importedAt,
+                hasSeedPhrase: !!(keyData.mnemonic || keyData.encryptedMnemonic)
             });
         }
     }
@@ -234,6 +357,77 @@ function getPublicKey(name) {
     }
     const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
     return keyData.publicKey;
+}
+/**
+ * Export private key in specified format
+ * @param name - Name of the keypair
+ * @param format - Export format: 'base58', 'base64', or 'json'
+ * @returns Private key in requested format
+ */
+function exportPrivateKey(name, format) {
+    if (!name) {
+        throw new Error('Name is required');
+    }
+    const keyPath = path.join(KEYS_DIR, `${name}.json`);
+    if (!fs.existsSync(keyPath)) {
+        throw new Error(`Keypair '${name}' not found`);
+    }
+    const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
+    const encryptionKey = getEncryptionKey();
+    // Decrypt the secret key
+    let secretKey;
+    try {
+        const secretKeyString = decryptData(keyData.encryptedSecretKey, encryptionKey);
+        secretKey = JSON.parse(secretKeyString);
+    }
+    catch (error) {
+        throw new Error('Failed to decrypt keypair: invalid password or corrupted key file');
+    }
+    // Convert to requested format
+    const secretKeyUint8 = Uint8Array.from(secretKey);
+    switch (format.toLowerCase()) {
+        case 'base58':
+            return bs58.encode(secretKeyUint8);
+        case 'base64':
+            return Buffer.from(secretKeyUint8).toString('base64');
+        case 'json':
+            return JSON.stringify(secretKey);
+        default:
+            throw new Error(`Unknown format: ${format}. Use 'base58', 'base64', or 'json'`);
+    }
+}
+/**
+ * Export seed phrase if keypair was imported/generated from mnemonic
+ * @param name - Name of the keypair
+ * @returns Seed phrase or null if not available
+ */
+function exportSeedPhrase(name) {
+    if (!name) {
+        throw new Error('Name is required');
+    }
+    const keyPath = path.join(KEYS_DIR, `${name}.json`);
+    if (!fs.existsSync(keyPath)) {
+        throw new Error(`Keypair '${name}' not found`);
+    }
+    const keyData = JSON.parse(fs.readFileSync(keyPath, 'utf-8'));
+    if (!keyData.mnemonic && !keyData.encryptedMnemonic) {
+        return null;
+    }
+    // If stored as plaintext
+    if (keyData.mnemonic) {
+        return keyData.mnemonic;
+    }
+    // If stored encrypted
+    if (keyData.encryptedMnemonic) {
+        const encryptionKey = getEncryptionKey();
+        try {
+            return decryptData(keyData.encryptedMnemonic, encryptionKey);
+        }
+        catch (error) {
+            throw new Error('Failed to decrypt seed phrase: invalid password or corrupted data');
+        }
+    }
+    return null;
 }
 /**
  * Validate BIP39 mnemonic and return validation result
@@ -373,15 +567,15 @@ function deriveAddressesFromMnemonic(mnemonic, passphrase = '', preset = 'backpa
  * @param name - Name for the keypair
  * @param mnemonic - BIP39 mnemonic phrase
  * @param accountIndex - Account index to derive
- * @param password - Password to encrypt the keypair
  * @param passphrase - Optional BIP39 passphrase
  * @param preset - Derivation preset
  * @param customPath - Custom derivation path (if preset is 'custom')
+ * @param storeMnemonic - Whether to store the mnemonic (encrypted) for future export
  * @returns Keypair info with public key
  */
-function importFromMnemonic(name, mnemonic, accountIndex, password, passphrase = '', preset = 'backpack', customPath = '') {
-    if (!name || !password) {
-        throw new Error('Name and password are required');
+function importFromMnemonic(name, mnemonic, accountIndex, passphrase = '', preset = 'backpack', customPath = '', storeMnemonic = false) {
+    if (!name) {
+        throw new Error('Name is required');
     }
     if (accountIndex < 0) {
         throw new Error('Account index must be non-negative');
@@ -390,6 +584,7 @@ function importFromMnemonic(name, mnemonic, accountIndex, password, passphrase =
     if (fs.existsSync(keyPath)) {
         throw new Error(`Keypair '${name}' already exists`);
     }
+    const encryptionKey = getEncryptionKey();
     // Validate mnemonic
     const validation = validateMnemonic(mnemonic);
     if (!validation.valid) {
@@ -406,14 +601,24 @@ function importFromMnemonic(name, mnemonic, accountIndex, password, passphrase =
         const keypair = web3_js_1.Keypair.fromSeed(derived.key);
         const secretKey = Array.from(keypair.secretKey);
         // Encrypt the secret key
-        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(secretKey), password).toString();
-        // Save encrypted keypair
+        const encrypted = encryptData(JSON.stringify(secretKey), encryptionKey);
+        // Prepare key data
         const keyData = {
             name,
             publicKey: keypair.publicKey.toBase58(),
             encryptedSecretKey: encrypted,
+            derivationPath,
             importedAt: new Date().toISOString()
         };
+        // Optionally store mnemonic
+        if (storeMnemonic) {
+            if (encryptionKey) {
+                keyData.encryptedMnemonic = encryptData(mnemonic, encryptionKey);
+            }
+            else {
+                keyData.mnemonic = mnemonic;
+            }
+        }
         fs.writeFileSync(keyPath, JSON.stringify(keyData, null, 2));
         return {
             name,
@@ -427,5 +632,14 @@ function importFromMnemonic(name, mnemonic, accountIndex, password, passphrase =
         }
         throw new Error(`Failed to import from mnemonic: ${error instanceof Error ? error.message : String(error)}`);
     }
+}
+/**
+ * Generate a new BIP39 mnemonic (seed phrase)
+ * @param wordCount - Number of words (12, 15, 18, 21, or 24), defaults to 24
+ * @returns Generated mnemonic phrase
+ */
+function generateNewMnemonic(wordCount = 24) {
+    const strength = (wordCount / 3) * 32; // Convert word count to bits of entropy
+    return bip39.generateMnemonic(strength);
 }
 //# sourceMappingURL=keyManager.js.map

@@ -69,15 +69,53 @@ const upload = (0, multer_1.default)({ storage });
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+// Password Management
+app.get('/api/password/status', (_req, res) => {
+    try {
+        const hasPassword = keyManager.hasGlobalPassword();
+        res.json({ success: true, hasPassword });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+});
+app.post('/api/password/set', (req, res) => {
+    try {
+        const { password } = req.body;
+        // Check if password already exists - one time setup only
+        if (keyManager.hasGlobalPassword()) {
+            res.status(400).json({
+                success: false,
+                error: 'Password already set. Password can only be configured once during initial setup.'
+            });
+            return;
+        }
+        keyManager.setGlobalPassword(password);
+        res.json({ success: true, message: 'Password set successfully. This password cannot be changed later.' });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+});
+app.post('/api/password/verify', (req, res) => {
+    try {
+        const { password } = req.body;
+        const valid = keyManager.verifyGlobalPassword(password);
+        res.json({ success: true, valid });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+});
 // Key Management
 app.post('/api/keys/generate', (req, res) => {
     try {
-        const { name, password } = req.body;
-        const keypair = keyManager.generateKeypair(name, password);
+        const { name } = req.body;
+        const keypair = keyManager.generateKeypair(name);
         res.json({
             success: true,
             publicKey: keypair.publicKey,
-            message: 'Keypair generated successfully. Save your password securely - it cannot be recovered.'
+            message: 'Keypair generated successfully'
         });
     }
     catch (error) {
@@ -86,8 +124,8 @@ app.post('/api/keys/generate', (req, res) => {
 });
 app.post('/api/keys/import', (req, res) => {
     try {
-        const { name, privateKey, password, format } = req.body;
-        const keypair = keyManager.importKeypair(name, privateKey, password, format);
+        const { name, privateKey, format } = req.body;
+        const keypair = keyManager.importKeypair(name, privateKey, format);
         res.json({
             success: true,
             publicKey: keypair.publicKey,
@@ -117,7 +155,56 @@ app.delete('/api/keys/:name', (req, res) => {
         res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
     }
 });
-// Mnemonic Import Endpoints
+// Export Endpoints
+app.post('/api/keys/export/private-key', (req, res) => {
+    try {
+        const { name, format, password } = req.body;
+        // Verify password if set
+        if (keyManager.hasGlobalPassword()) {
+            if (!password || !keyManager.verifyGlobalPassword(password)) {
+                res.status(401).json({ success: false, error: 'Invalid password' });
+                return;
+            }
+        }
+        const exportedKey = keyManager.exportPrivateKey(name, format);
+        res.json({ success: true, privateKey: exportedKey, format });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+});
+app.post('/api/keys/export/seed-phrase', (req, res) => {
+    try {
+        const { name, password } = req.body;
+        // Verify password if set
+        if (keyManager.hasGlobalPassword()) {
+            if (!password || !keyManager.verifyGlobalPassword(password)) {
+                res.status(401).json({ success: false, error: 'Invalid password' });
+                return;
+            }
+        }
+        const mnemonic = keyManager.exportSeedPhrase(name);
+        if (mnemonic === null) {
+            res.status(404).json({ success: false, error: 'No seed phrase stored for this keypair' });
+            return;
+        }
+        res.json({ success: true, mnemonic });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+});
+// Mnemonic Endpoints
+// Generate new mnemonic
+app.post('/api/keys/generate-mnemonic', (_req, res) => {
+    try {
+        const mnemonic = keyManager.generateNewMnemonic();
+        res.json({ success: true, mnemonic });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+});
 // Validate mnemonic
 app.post('/api/keys/validate-mnemonic', (req, res) => {
     try {
@@ -152,8 +239,9 @@ app.post('/api/keys/derive-preview', (req, res) => {
 // Import from mnemonic
 app.post('/api/keys/import-mnemonic', (req, res) => {
     try {
-        const { name, mnemonic, accountIndex, password, passphrase, preset, customPath } = req.body;
-        const keypair = keyManager.importFromMnemonic(name, mnemonic, accountIndex, password, passphrase || '', preset || 'backpack', customPath || '');
+        const { name, mnemonic, accountIndex, passphrase, preset, customPath, storeMnemonic } = req.body;
+        const keypair = keyManager.importFromMnemonic(name, mnemonic, accountIndex, passphrase || '', preset || 'backpack', customPath || '', storeMnemonic !== false // default to true
+        );
         res.json({
             success: true,
             publicKey: keypair.publicKey,
@@ -191,7 +279,14 @@ app.post('/api/transaction/sign', async (req, res) => {
             res.json({ success: false, message: 'Transaction declined by user' });
             return;
         }
-        const result = await signer.signTransaction(filePath, keyName, password);
+        // Verify password if set
+        if (keyManager.hasGlobalPassword()) {
+            if (!password || !keyManager.verifyGlobalPassword(password)) {
+                res.status(401).json({ success: false, error: 'Invalid password' });
+                return;
+            }
+        }
+        const result = await signer.signTransaction(filePath, keyName);
         res.json({
             success: true,
             signature: result.signature,

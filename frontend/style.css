@@ -13,8 +13,12 @@ body {
 }
 
 .container {
-    max-width: 900px;
+    width: 100%;
+    max-width: 800px;
     margin: 0 auto;
+}
+
+#main-app {
     background: white;
     border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
@@ -501,6 +505,12 @@ footer p {
     background: #e9ecef;
 }
 
+.export-actions-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
 /* Format Options */
 .format-options {
     display: flex;
@@ -678,4 +688,337 @@ footer p {
     .address-table td {
         padding: 8px 6px;
     }
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    padding: 20px;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    max-width: 500px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: #667eea;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: #666;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-close:hover {
+    color: #333;
+    background: #f0f0f0;
+    border-radius: 50%;
+}
+
+/* Inline Export Section */
+.inline-export-section {
+    background: #f8f9fa;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    padding: 25px;
+    margin-top: 20px;
+}
+
+.export-header {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.export-keypair-name {
+    font-weight: 600;
+    color: #667eea;
+    margin-top: 5px;
+}
+
+.export-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.export-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 15px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.export-option:hover {
+    border-color: #667eea;
+    background: #f8f9ff;
+}
+
+.export-option input[type="radio"] {
+    margin-top: 3px;
+}
+
+.export-option label {
+    cursor: pointer;
+    flex: 1;
+}
+
+.export-option label strong {
+    display: block;
+    color: #333;
+    margin-bottom: 3px;
+}
+
+.export-option label small {
+    color: #666;
+}
+
+.export-actions {
+    display: flex;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+/* Warning Box */
+.warning-box {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.warning-box p {
+    margin: 0;
+    color: #856404;
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 25px;
+}
+
+/* Checkbox Group */
+.checkbox-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    margin-top: 3px;
+}
+
+/* Mnemonic Display */
+.mnemonic-display {
+    background: #f8f9fa;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    font-family: 'Courier New', monospace;
+    font-size: 1.1em;
+    line-height: 1.6;
+}
+
+/* Header with Settings */
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.header-title {
+    flex: 1;
+    text-align: center;
+}
+
+.header-actions {
+    position: relative;
+}
+
+.btn-icon {
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    font-size: 1.5em;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-icon:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
+/* Dropdown */
+.dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 10px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    min-width: 250px;
+    z-index: 100;
+}
+
+.dropdown-content {
+    padding: 15px;
+}
+
+#password-status-section {
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 10px;
+}
+
+#password-status-text {
+    margin: 0;
+    font-size: 0.9em;
+    color: #666;
+}
+
+.dropdown-btn {
+    display: block;
+    width: 100%;
+    padding: 10px 15px;
+    margin: 5px 0;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+    font-size: 0.95em;
+}
+
+.dropdown-btn:hover {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+/* Modal form actions */
+.modal .form-actions {
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+/* Seed step container */
+.seed-step {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Inline method form */
+.inline-method-form {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Password Gate Page */
+.password-gate {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.gate-content {
+    width: 100%;
+    max-width: 500px;
+}
+
+.gate-header {
+    text-align: center;
+    color: white;
+    margin-bottom: 30px;
+}
+
+.gate-header h1 {
+    font-size: 2em;
+    margin-bottom: 10px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.gate-header .subtitle {
+    font-size: 1.1em;
+    opacity: 0.9;
+}
+
+.gate-card {
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.gate-card h2 {
+    color: #667eea;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.btn-large {
+    font-size: 1.1em;
+    padding: 15px 30px;
 }

@@ -46,12 +46,11 @@ const txProcessor = __importStar(require("./txProcessor"));
  * Sign a transaction
  * @param transactionFilePath - Path to unsigned transaction file
  * @param keyName - Name of the keypair to use
- * @param password - Password to decrypt the keypair
  * @returns Signature and output file path
  */
-async function signTransaction(transactionFilePath, keyName, password) {
+async function signTransaction(transactionFilePath, keyName) {
     // Load keypair
-    const keypair = keyManager.loadKeypair(keyName, password);
+    const keypair = keyManager.loadKeypair(keyName);
     // Parse transaction
     const txData = txProcessor.parseTransactionFile(transactionFilePath);
     // Get message buffer

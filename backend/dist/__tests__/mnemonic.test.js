@@ -42,7 +42,6 @@ const VALID_MNEMONIC_12 = 'abandon abandon abandon abandon abandon abandon aband
 const VALID_MNEMONIC_24 = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art';
 const INVALID_WORD_COUNT = 'abandon abandon abandon';
 const INVALID_CHECKSUM = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon';
-const TEST_PASSWORD = 'test-password-123';
 const TEST_KEYPAIR_NAME = 'test-mnemonic-keypair';
 describe('Mnemonic Import', () => {
     // Clean up before each test
@@ -171,25 +170,25 @@ describe('Mnemonic Import', () => {
     });
     describe('importFromMnemonic', () => {
         it('should import from Backpack derivation path', () => {
-            const result = keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 0, TEST_PASSWORD, '', 'backpack', '');
+            const result = keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 0, '', 'backpack', '', true);
             expect(result.name).toBe(TEST_KEYPAIR_NAME);
             expect(result.publicKey).toBeDefined();
             expect(result.publicKey.length).toBe(44);
             expect(result.importedAt).toBeDefined();
         });
         it('should import with passphrase', () => {
-            const result = keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 0, TEST_PASSWORD, 'my-secret-passphrase', 'backpack', '');
+            const result = keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 0, 'my-secret-passphrase', 'backpack', '', true);
             expect(result.publicKey).toBeDefined();
         });
         it('should import with custom path', () => {
-            const result = keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 5, TEST_PASSWORD, '', 'custom', "m/44'/501'/{index}'/0'/0'");
+            const result = keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 5, '', 'custom', "m/44'/501'/{index}'/0'/0'", true);
             expect(result.publicKey).toBeDefined();
         });
         it('should derive different accounts from same mnemonic', () => {
             // Import account 0
-            keyManager.importFromMnemonic(`${TEST_KEYPAIR_NAME}-0`, VALID_MNEMONIC_12, 0, TEST_PASSWORD, '', 'backpack', '');
+            keyManager.importFromMnemonic(`${TEST_KEYPAIR_NAME}-0`, VALID_MNEMONIC_12, 0, '', 'backpack', '', true);
             // Import account 1
-            keyManager.importFromMnemonic(`${TEST_KEYPAIR_NAME}-1`, VALID_MNEMONIC_12, 1, TEST_PASSWORD, '', 'backpack', '');
+            keyManager.importFromMnemonic(`${TEST_KEYPAIR_NAME}-1`, VALID_MNEMONIC_12, 1, '', 'backpack', '', true);
             const keypair0 = keyManager.getPublicKey(`${TEST_KEYPAIR_NAME}-0`);
             const keypair1 = keyManager.getPublicKey(`${TEST_KEYPAIR_NAME}-1`);
             // Different accounts should have different public keys
@@ -200,35 +199,30 @@ describe('Mnemonic Import', () => {
         });
         it('should throw error for missing name', () => {
             expect(() => {
-                keyManager.importFromMnemonic('', VALID_MNEMONIC_12, 0, TEST_PASSWORD, '', 'backpack', '');
-            }).toThrow('Name and password are required');
-        });
-        it('should throw error for missing password', () => {
-            expect(() => {
-                keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 0, '', '', 'backpack', '');
-            }).toThrow('Name and password are required');
+                keyManager.importFromMnemonic('', VALID_MNEMONIC_12, 0, '', 'backpack', '', true);
+            }).toThrow('Name is required');
         });
         it('should throw error for negative account index', () => {
             expect(() => {
-                keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, -1, TEST_PASSWORD, '', 'backpack', '');
+                keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, -1, '', 'backpack', '', true);
             }).toThrow('Account index must be non-negative');
         });
         it('should throw error for duplicate keypair name', () => {
             // First import
-            keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 0, TEST_PASSWORD, '', 'backpack', '');
+            keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 0, '', 'backpack', '', true);
             // Second import with same name should fail
             expect(() => {
-                keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 1, TEST_PASSWORD, '', 'backpack', '');
+                keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 1, '', 'backpack', '', true);
             }).toThrow('already exists');
         });
         it('should throw error for invalid mnemonic', () => {
             expect(() => {
-                keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, INVALID_WORD_COUNT, 0, TEST_PASSWORD, '', 'backpack', '');
+                keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, INVALID_WORD_COUNT, 0, '', 'backpack', '', true);
             }).toThrow('Invalid word count');
         });
         it('should load imported keypair successfully', () => {
-            keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 0, TEST_PASSWORD, '', 'backpack', '');
-            const loaded = keyManager.loadKeypair(TEST_KEYPAIR_NAME, TEST_PASSWORD);
+            keyManager.importFromMnemonic(TEST_KEYPAIR_NAME, VALID_MNEMONIC_12, 0, '', 'backpack', '', true);
+            const loaded = keyManager.loadKeypair(TEST_KEYPAIR_NAME);
             expect(loaded).toBeDefined();
             expect(loaded.publicKey.toBase58()).toBeDefined();
         });

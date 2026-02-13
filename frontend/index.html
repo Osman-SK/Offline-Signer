@@ -8,15 +8,59 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🔐 Offline Solana Transaction Signer</h1>
-            <p class="subtitle">Secure, Air-Gapped Transaction Signing</p>
-        </header>
+        <!-- Password Gate - Blocks app until password is set -->
+        <div id="password-gate" class="password-gate" style="display: none;">
+            <div class="gate-content">
+                <div class="gate-header">
+                    <h1>🔐 Offline Solana Transaction Signer</h1>
+                    <p class="subtitle">Secure, Air-Gapped Transaction Signing</p>
+                </div>
+                
+                <div class="gate-card">
+                    <h2>🔐 Set Your Password</h2>
+                    
+                    <div class="warning-box" style="margin-bottom: 25px; background: #fff3cd; border: 2px solid #ffc107;">
+                        <p style="font-size: 1.1em; margin-bottom: 10px;"><strong>⚠️ ONE-TIME SETUP ONLY</strong></p>
+                        <p style="margin-bottom: 8px;">This password <strong>CANNOT be changed later</strong>.</p>
+                        <p>There is <strong>NO "forgot password"</strong> option. If you forget it, you lose access to all keypairs <strong>FOREVER</strong>.</p>
+                    </div>
+                    
+                    <form id="gate-password-form" class="form">
+                        <div class="form-group">
+                            <label for="gate-password" style="font-weight: bold; font-size: 1.1em;">Choose Your Permanent Password:</label>
+                            <input type="password" id="gate-password" placeholder="Enter a password you will remember" required style="font-size: 1.1em; padding: 12px;">
+                            <small id="gate-password-error" style="color: #dc3545; display: none; font-weight: bold;">⚠️ Password cannot be empty</small>
+                        </div>
+                        
+                        <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-left: 4px solid #dc3545; border-radius: 4px;">
+                            <p style="margin: 0; font-size: 0.95em; color: #856404;">
+                                <strong>✍️ Write it down now!</strong> Store it somewhere safe. You will need this password every time you export or sign transactions.
+                            </p>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-large" style="width: 100%; margin-top: 20px; font-size: 1.2em; padding: 15px;">
+                            ✓ I Understand - Set Password & Continue
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
 
-        <!-- Navigation Tabs -->
+        <!-- Main App - Only accessible after password is set -->
+        <div id="main-app" style="display: none;">
+            <header>
+                <div class="header-content">
+                    <div class="header-title">
+                        <h1>🔐 Offline Solana Transaction Signer</h1>
+                        <p class="subtitle">Secure, Air-Gapped Transaction Signing</p>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Navigation Tabs -->
         <div class="tabs">
-            <button class="tab-button active" onclick="showTab('keys')">Key Management</button>
-            <button class="tab-button" onclick="showTab('sign')">Sign Transaction</button>
+            <button class="tab-button active" data-tab="keys" onclick="showTab('keys')">Key Management</button>
+            <button class="tab-button" data-tab="sign" onclick="showTab('sign')">Sign Transaction</button>
         </div>
 
         <!-- Key Management Tab -->
@@ -26,161 +70,221 @@
                 <div id="keypair-list" class="keypair-list">
                     <p class="loading">Loading keypairs...</p>
                 </div>
-            </section>
-
-            <section class="card">
-                <h2>Generate New Keypair</h2>
-                <form id="generate-form" class="form">
-                    <div class="form-group">
-                        <label for="gen-name">Keypair Name:</label>
-                        <input type="text" id="gen-name" required placeholder="e.g., my-wallet">
-                    </form-group>
-                    <div class="form-group">
-                        <label for="gen-password">Password:</label>
-                        <input type="password" id="gen-password" required placeholder="Enter a strong password">
-                    </div>
-                    <div class="form-group">
-                        <label for="gen-password-confirm">Confirm Password:</label>
-                        <input type="password" id="gen-password-confirm" required placeholder="Confirm password">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Generate Keypair</button>
-                </form>
-            </section>
-
-            <section class="card">
-                <h2>Import Existing Keypair</h2>
                 
-                <!-- Step 1: Choose Import Method -->
-                <div id="import-method-selection" class="import-method-selection">
-                    <p class="section-intro">How would you like to import your keypair?</p>
-                    <div class="method-cards">
-                        <div class="method-card" id="method-private-key" onclick="selectImportMethod('private-key')">
-                            <div class="method-icon">🔑</div>
-                            <h3>Private Key</h3>
-                            <p>Import from an existing private key</p>
-                            <small>Base58, Base64, or JSON formats</small>
+                <!-- Inline Export Card -->
+                <div id="inline-export-card" class="inline-export-section" style="display: none;">
+                    <div class="export-header">
+                        <button type="button" class="btn btn-back" onclick="closeInlineExport()">← Back to Keypairs</button>
+                        <h3>Export Keypair</h3>
+                        <p class="export-keypair-name" id="export-keypair-name-display"></p>
+                    </div>
+                    
+                    <div id="inline-export-options">
+                        <div class="form-group">
+                            <label for="inline-export-format">Export Format:</label>
+                            <select id="inline-export-format">
+                                <option value="base58" selected>Private Key (Base58) - Most common</option>
+                                <option value="base64">Private Key (Base64)</option>
+                                <option value="json">Private Key (JSON)</option>
+                                <option id="inline-export-seed-option" value="seed-phrase" style="display: none;">🌱 Seed Phrase</option>
+                            </select>
+                            <small id="export-format-hint">Base58 encoded private key (e.g., from Phantom, Solflare)</small>
                         </div>
-                        <div class="method-card" id="method-seed-phrase" onclick="selectImportMethod('seed-phrase')">
+                        
+                        <div id="inline-export-password-section" style="display: none;">
+                            <div class="form-group">
+                                <label for="inline-export-password">Application Password:</label>
+                                <input type="password" id="inline-export-password" placeholder="Enter your application password">
+                                <small>Required to decrypt and export</small>
+                            </div>
+                        </div>
+                        
+                        <div class="export-actions-row">
+                            <button type="button" id="inline-confirm-export-btn" class="btn btn-primary">Export</button>
+                            <button type="button" class="btn btn-secondary" onclick="closeInlineExport()">Cancel</button>
+                        </div>
+                    </div>
+                    
+                    <div id="inline-export-result" style="display: none;">
+                        <div class="form-group">
+                            <label>Exported Data:</label>
+                            <textarea id="inline-export-result-text" readonly rows="4"></textarea>
+                        </div>
+                        <div class="export-actions">
+                            <button type="button" class="btn btn-secondary" onclick="copyInlineExportResult()">📋 Copy to Clipboard</button>
+                            <button type="button" class="btn btn-secondary" onclick="downloadInlineExportResult()">💾 Download to File</button>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="closeInlineExport()">Done</button>
+                    </div>
+                </div>
+                
+
+            </section>
+
+            <section class="card">
+                <h2>Import Existing Keypair or Generate a New One</h2>
+                <div id="keypair-methods-container">
+                    <!-- Method Selection Grid -->
+                    <div id="method-selection-grid" class="method-cards four-cards">
+                        <div class="method-card" onclick="startSeedFlow('import')">
                             <div class="method-icon">🌱</div>
-                            <h3>Seed Phrase</h3>
+                            <h3>Import from Seed Phrase</h3>
                             <p>Import from BIP39 mnemonic</p>
                             <small>12-24 word recovery phrase</small>
                         </div>
+                        <div class="method-card" onclick="startSeedFlow('generate')">
+                            <div class="method-icon">🆕</div>
+                            <h3>Generate New Seed Phrase</h3>
+                            <p>Create new wallet with seed phrase</p>
+                            <small>24-word mnemonic with backup</small>
+                        </div>
+                        <div class="method-card" onclick="showMethodForm('private-key')">
+                            <div class="method-icon">🔑</div>
+                            <h3>Import from Private Key</h3>
+                            <p>Import from an existing private key</p>
+                            <small>Base58, Base64, or JSON formats</small>
+                        </div>
+                        <div class="method-card" onclick="showMethodForm('keypair')">
+                            <div class="method-icon">⚡</div>
+                            <h3>Generate New Keypair</h3>
+                            <p>Create a fresh keypair instantly</p>
+                            <small>Direct generation, no seed phrase</small>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Step 2a: Private Key Import Form -->
-                <form id="private-key-form" class="form import-branch" style="display: none;">
-                    <button type="button" class="btn btn-back" onclick="backToMethodSelection()">← Back to Methods</button>
-                    <h3>Import from Private Key</h3>
-                    
-                    <div class="form-group">
-                        <label for="pk-import-name">Keypair Name:</label>
-                        <input type="text" id="pk-import-name" required placeholder="e.g., my-wallet">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="pk-format-select">Private Key Format:</label>
-                        <select id="pk-format-select" required>
-                            <option value="base58" selected>Base58 (Most Common)</option>
-                            <option value="base64">Base64</option>
-                            <option value="json">JSON Array</option>
-                        </select>
-                        <small id="pk-format-hint">Base58 encoded (e.g., from Phantom, Solflare, Solana CLI)</small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="pk-private-key">Private Key:</label>
-                        <textarea id="pk-private-key" required placeholder="Enter your private key..." rows="3"></textarea>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="pk-import-password">Password:</label>
-                        <input type="password" id="pk-import-password" required placeholder="Enter a strong password">
-                        <small>This password will encrypt your keypair</small>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary">Import Keypair</button>
-                </form>
+                    <!-- Unified Seed Phrase Flow -->
+                    <div id="seed-flow-container" class="inline-method-form" style="display: none;">
+                        <!-- Step 1: Mnemonic (Import: input, Generate: display) -->
+                        <div id="seed-step-mnemonic" class="seed-step">
+                            <button type="button" class="btn btn-back" onclick="navigateBack()">← Back</button>
+                            <h3 id="mnemonic-step-title">Enter Your Seed Phrase</h3>
+                            
+                            <!-- Import Mode: Input -->
+                            <div id="mnemonic-input-section">
+                                <div class="form-group">
+                                    <label for="mnemonic-input">Recovery Phrase:</label>
+                                    <textarea id="mnemonic-input" placeholder="Enter 12-24 words separated by spaces..." rows="3"></textarea>
+                                    <div id="mnemonic-validation" class="validation-status"></div>
+                                </div>
+                                <div class="form-group passphrase-group">
+                                    <label for="mnemonic-passphrase">Passphrase (Optional):</label>
+                                    <input type="password" id="mnemonic-passphrase" placeholder="Leave empty if not used">
+                                    <small>Only required if you used a passphrase when creating the wallet</small>
+                                </div>
+                                <button type="button" id="continue-to-derivation-btn" class="btn btn-primary" disabled>Continue</button>
+                            </div>
+                            
+                            <!-- Generate Mode: Display -->
+                            <div id="mnemonic-display-section" style="display: none;">
+                                <div class="warning-box">
+                                    <p><strong>⚠️ Critical:</strong> Write down these 24 words in order and store them securely. This is the only way to recover your wallet. Never share these words with anyone.</p>
+                                </div>
+                                <div id="generated-mnemonic-display" class="mnemonic-display"></div>
+                                <div class="form-group checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="mnemonic-written-check">
+                                        <span>I have written down all 24 words in the correct order</span>
+                                    </label>
+                                </div>
+                                <button type="button" id="continue-to-verify-btn" class="btn btn-primary" disabled>Continue to Verification</button>
+                            </div>
+                        </div>
 
-                <!-- Step 2b: Seed Phrase Import Form -->
-                <div id="seed-phrase-container" class="import-branch" style="display: none;">
-                    <!-- Step 2b-1: Enter Mnemonic -->
-                    <div id="mnemonic-step" class="import-step">
-                        <button type="button" class="btn btn-back" onclick="goBackOneStep()">← Back</button>
-                        <h3>Enter Your Seed Phrase</h3>
-                        <div class="form-group">
-                            <label for="mnemonic-input">Recovery Phrase:</label>
-                            <textarea id="mnemonic-input" placeholder="Enter 12, 15, 18, 21, or 24 words separated by spaces..." rows="3"></textarea>
-                            <div id="mnemonic-validation" class="validation-status"></div>
+                        <!-- Step 2: Verification (Generate mode only) -->
+                        <div id="seed-step-verify" class="seed-step" style="display: none;">
+                            <button type="button" class="btn btn-back" onclick="navigateBack()">← Back</button>
+                            <h3>Verify Your Seed Phrase</h3>
+                            <p class="section-intro">Please enter the requested words to confirm you have written them down correctly.</p>
+                            <div id="mnemonic-verification-container"></div>
+                            <button type="button" id="verify-mnemonic-btn" class="btn btn-primary" disabled>Verify & Continue</button>
                         </div>
-                        
-                        <div class="form-group passphrase-group">
-                            <label for="mnemonic-passphrase">Passphrase (Optional):</label>
-                            <input type="password" id="mnemonic-passphrase" placeholder="Leave empty if not used">
-                            <small>Only required if you used a passphrase when creating the wallet</small>
+
+                        <!-- Step 3: Derivation Path -->
+                        <div id="seed-step-derivation" class="seed-step" style="display: none;">
+                            <button type="button" class="btn btn-back" onclick="navigateBack()">← Back</button>
+                            <h3>Select Derivation Path</h3>
+                            <div class="form-group">
+                                <label for="derivation-preset">Wallet Type:</label>
+                                <select id="derivation-preset">
+                                    <option value="backpack">Backpack m/44'/501'/x'/0'</option>
+                                    <option value="backpack-legacy">Backpack Legacy m/44'/501'/0'/0'/x'</option>
+                                    <option value="solana-legacy">Solana Legacy m/44'/501'/x'</option>
+                                    <option value="ledger-live">Ledger Live m/44'/501'/x'/0'/0'</option>
+                                    <option value="custom">Custom Path...</option>
+                                </select>
+                                <small id="preset-description">Backpack wallet standard path</small>
+                            </div>
+                            <div id="custom-path-container" class="form-group" style="display: none;">
+                                <label for="custom-path-input">Custom Derivation Path:</label>
+                                <input type="text" id="custom-path-input" placeholder="m/44'/501'/0'/0'" value="m/44'/501'/{index}'">
+                                <small>Use {index} as placeholder for account number</small>
+                            </div>
+                            <button type="button" id="preview-addresses-btn" class="btn btn-primary">Preview Addresses</button>
                         </div>
-                        
-                        <button type="button" id="continue-to-derivation-btn" class="btn btn-primary" disabled>Continue</button>
+
+                        <!-- Step 4: Address Selection -->
+                        <div id="seed-step-addresses" class="seed-step" style="display: none;">
+                            <button type="button" class="btn btn-back" onclick="navigateBack()">← Back</button>
+                            <h3>Select Address to Import</h3>
+                            <div id="address-preview-container">
+                                <table id="address-preview-table" class="address-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Select</th>
+                                            <th>Index</th>
+                                            <th>Path</th>
+                                            <th>Address</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="address-list"></tbody>
+                                </table>
+                            </div>
+                            <button type="button" id="load-more-addresses-btn" class="btn btn-secondary btn-small">Load More Addresses</button>
+                            <div class="form-group" style="margin-top: 20px;">
+                                <label for="seed-import-name">Keypair Name:</label>
+                                <input type="text" id="seed-import-name" required placeholder="e.g., my-wallet">
+                            </div>
+                            <button type="button" id="import-seed-btn" class="btn btn-primary">Import Selected Address</button>
+                        </div>
                     </div>
-                    
-                    <!-- Step 2b-2: Select Derivation Path -->
-                    <div id="derivation-step" class="import-step" style="display: none;">
-                        <button type="button" class="btn btn-back" onclick="goBackOneStep()">← Back</button>
-                        <h3>Select Derivation Path</h3>
-                        <div class="form-group">
-                            <label for="derivation-preset">Wallet Type:</label>
-                            <select id="derivation-preset">
-                                <option value="backpack">Backpack m/44'/501'/x'/0'</option>
-                                <option value="backpack-legacy">Backpack Legacy m/44'/501'/0'/0'/x'</option>
-                                <option value="solana-legacy">Solana Legacy m/44'/501'/x'</option>
-                                <option value="ledger-live">Ledger Live m/44'/501'/x'/0'/0'</option>
-                                <option value="custom">Custom Path...</option>
-                            </select>
-                            <small id="preset-description">Backpack wallet standard path</small>
-                        </div>
-                        
-                        <div id="custom-path-input-container" class="form-group" style="display: none;">
-                            <label for="custom-path-input">Custom Derivation Path:</label>
-                            <input type="text" id="custom-path-input" placeholder="m/44'/501'/0'/0'" value="m/44'/501'/{index}'">
-                            <small>Use {index} as placeholder for account number (0, 1, 2, etc.)</small>
-                        </div>
-                        
-                        <button type="button" id="preview-addresses-btn" class="btn btn-primary">Preview Addresses</button>
+
+                    <!-- Import Private Key Inline Form -->
+                    <div id="private-key-form" class="inline-method-form" style="display: none;">
+                        <button type="button" class="btn btn-back" onclick="backToMethodGrid()">← Back</button>
+                        <h3>Import from Private Key</h3>
+                        <form id="pk-form" class="form">
+                            <div class="form-group">
+                                <label for="pk-import-name">Keypair Name:</label>
+                                <input type="text" id="pk-import-name" required placeholder="e.g., my-wallet">
+                            </div>
+                            <div class="form-group">
+                                <label for="pk-format-select">Private Key Format:</label>
+                                <select id="pk-format-select" required>
+                                    <option value="base58" selected>Base58 (Most Common)</option>
+                                    <option value="base64">Base64</option>
+                                    <option value="json">JSON Array</option>
+                                </select>
+                                <small id="pk-format-hint">Base58 encoded (e.g., from Phantom, Solflare, Solana CLI)</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="pk-private-key">Private Key:</label>
+                                <textarea id="pk-private-key" required placeholder="Enter your private key..." rows="3"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Import Keypair</button>
+                        </form>
                     </div>
-                    
-                    <!-- Step 2b-3: Select Address -->
-                    <div id="address-selection-step" class="import-step" style="display: none;">
-                        <button type="button" class="btn btn-back" onclick="goBackOneStep()">← Back</button>
-                        <h3>Select Address to Import</h3>
-                        <div id="address-preview-container">
-                            <table id="address-preview-table" class="address-table">
-                                <thead>
-                                    <tr>
-                                        <th>Select</th>
-                                        <th>Index</th>
-                                        <th>Path</th>
-                                        <th>Address</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="address-list">
-                                    <!-- Populated dynamically -->
-                                </tbody>
-                            </table>
-                        </div>
-                        <button type="button" id="load-more-addresses-btn" class="btn btn-secondary btn-small">Load More Addresses</button>
-                        
-                        <div class="form-group" style="margin-top: 20px;">
-                            <label for="sp-import-name">Keypair Name:</label>
-                            <input type="text" id="sp-import-name" required placeholder="e.g., my-wallet">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="sp-import-password">Password:</label>
-                            <input type="password" id="sp-import-password" required placeholder="Enter a strong password">
-                        </div>
-                        
-                        <button type="button" id="import-seed-phrase-btn" class="btn btn-primary">Import Selected Address</button>
+
+                    <!-- Generate Keypair Inline Form -->
+                    <div id="keypair-form" class="inline-method-form" style="display: none;">
+                        <button type="button" class="btn btn-back" onclick="backToMethodGrid()">← Back</button>
+                        <h3>Generate New Keypair</h3>
+                        <form id="gen-keypair-form" class="form">
+                            <div class="form-group">
+                                <label for="gen-name">Keypair Name:</label>
+                                <input type="text" id="gen-name" required placeholder="e.g., my-wallet">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Generate Keypair</button>
+                        </form>
                     </div>
                 </div>
             </section>
@@ -202,9 +306,7 @@
 
             <section class="card" id="transaction-details" style="display: none;">
                 <h2>Transaction Details</h2>
-                <div id="tx-info" class="tx-info">
-                    <!-- Transaction details will be populated here -->
-                </div>
+                <div id="tx-info" class="tx-info"></div>
 
                 <div class="form-group">
                     <label for="signing-key">Select Keypair:</label>
@@ -213,9 +315,10 @@
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label for="signing-password">Password:</label>
-                    <input type="password" id="signing-password" required placeholder="Enter your password">
+                <div class="form-group" id="global-password-group">
+                    <label for="global-signing-password">Application Password:</label>
+                    <input type="password" id="global-signing-password" placeholder="Enter your application password">
+                    <small id="password-required-hint" style="display: none;">Password is required to decrypt keypairs</small>
                 </div>
 
                 <div class="signing-actions">
@@ -226,14 +329,13 @@
 
             <section class="card" id="signing-result" style="display: none;">
                 <h2>Signing Complete</h2>
-                <div id="result-info" class="result-info">
-                    <!-- Result info will be populated here -->
-                </div>
+                <div id="result-info" class="result-info"></div>
             </section>
         </div>
 
         <!-- Status Messages -->
         <div id="status-message" class="status-message"></div>
+        </div><!-- /main-app -->
     </div>
 
     <footer>

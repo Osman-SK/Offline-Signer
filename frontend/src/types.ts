@@ -11,6 +11,7 @@ export interface KeypairInfo {
   publicKey: string;
   createdAt?: string;
   importedAt?: string;
+  hasSeedPhrase?: boolean;
 }
 
 export interface KeypairListResponse {

@@ -74,16 +74,14 @@ interface ParsedTransaction {
  * Sign a transaction
  * @param transactionFilePath - Path to unsigned transaction file
  * @param keyName - Name of the keypair to use
- * @param password - Password to decrypt the keypair
  * @returns Signature and output file path
  */
 export async function signTransaction(
   transactionFilePath: string,
-  keyName: string,
-  password: string
+  keyName: string
 ): Promise<SignResult> {
   // Load keypair
-  const keypair = keyManager.loadKeypair(keyName, password);
+  const keypair = keyManager.loadKeypair(keyName);
   
   // Parse transaction
   const txData = txProcessor.parseTransactionFile(transactionFilePath) as ParsedTransaction;

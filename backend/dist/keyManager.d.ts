@@ -1,5 +1,24 @@
 import { Keypair } from '@solana/web3.js';
 /**
+ * Config file structure
+ */
+interface Config {
+    passwordHash?: string;
+}
+/**
+ * Keypair file data structure
+ */
+interface KeypairFileData {
+    name: string;
+    publicKey: string;
+    encryptedSecretKey: string;
+    mnemonic?: string;
+    encryptedMnemonic?: string;
+    createdAt?: string;
+    importedAt?: string;
+    derivationPath?: string;
+}
+/**
  * Keypair information (without sensitive data)
  */
 interface KeypairInfo {
@@ -7,30 +26,55 @@ interface KeypairInfo {
     publicKey: string;
     createdAt?: string;
     importedAt?: string;
+    hasSeedPhrase?: boolean;
 }
+/**
+ * Set and store the global password
+ * @param password - The password to set
+ */
+export declare function setGlobalPassword(password: string): void;
+/**
+ * Verify if the provided password matches the stored global password
+ * @param password - The password to verify
+ * @returns True if password matches, false otherwise
+ */
+export declare function verifyGlobalPassword(password: string): boolean;
+/**
+ * Check if a global password is set
+ * @returns True if password is set, false otherwise
+ */
+export declare function hasGlobalPassword(): boolean;
+/**
+ * Get the encryption key for encrypting/decrypting keypairs
+ * Returns empty string if no password is set (no encryption mode)
+ * @returns The password or empty string
+ */
+export declare function getEncryptionKey(): string;
+/**
+ * Clear the global password (for "no encryption" option)
+ * This removes the password protection but keeps existing encrypted keypairs encrypted
+ */
+export declare function clearGlobalPassword(): void;
 /**
  * Generate a new keypair
  * @param name - Name for the keypair
- * @param password - Password to encrypt the keypair
  * @returns Keypair info with public key
  */
-export declare function generateKeypair(name: string, password: string): KeypairInfo;
+export declare function generateKeypair(name: string): KeypairInfo;
 /**
  * Import an existing keypair
  * @param name - Name for the keypair
  * @param privateKey - Private key in specified format
- * @param password - Password to encrypt the keypair
  * @param format - Format of private key: 'base58' (default), 'base64', or 'json'
  * @returns Keypair info with public key
  */
-export declare function importKeypair(name: string, privateKey: string, password: string, format?: 'base58' | 'base64' | 'json'): KeypairInfo;
+export declare function importKeypair(name: string, privateKey: string, format?: 'base58' | 'base64' | 'json'): KeypairInfo;
 /**
- * Load a keypair with password
+ * Load a keypair
  * @param name - Name of the keypair
- * @param password - Password to decrypt the keypair
  * @returns Solana Keypair object
  */
-export declare function loadKeypair(name: string, password: string): Keypair;
+export declare function loadKeypair(name: string): Keypair;
 /**
  * List all keypairs (without private keys)
  * @returns Array of keypair info objects
@@ -47,6 +91,19 @@ export declare function deleteKeypair(name: string): void;
  * @returns Public key (base58)
  */
 export declare function getPublicKey(name: string): string;
+/**
+ * Export private key in specified format
+ * @param name - Name of the keypair
+ * @param format - Export format: 'base58', 'base64', or 'json'
+ * @returns Private key in requested format
+ */
+export declare function exportPrivateKey(name: string, format: 'base58' | 'base64' | 'json'): string;
+/**
+ * Export seed phrase if keypair was imported/generated from mnemonic
+ * @param name - Name of the keypair
+ * @returns Seed phrase or null if not available
+ */
+export declare function exportSeedPhrase(name: string): string | null;
 /**
  * Validate BIP39 mnemonic and return validation result
  * Non-blocking: returns warnings but allows proceeding
@@ -109,12 +166,18 @@ export declare function deriveAddressesFromMnemonic(mnemonic: string, passphrase
  * @param name - Name for the keypair
  * @param mnemonic - BIP39 mnemonic phrase
  * @param accountIndex - Account index to derive
- * @param password - Password to encrypt the keypair
  * @param passphrase - Optional BIP39 passphrase
  * @param preset - Derivation preset
  * @param customPath - Custom derivation path (if preset is 'custom')
+ * @param storeMnemonic - Whether to store the mnemonic (encrypted) for future export
  * @returns Keypair info with public key
  */
-export declare function importFromMnemonic(name: string, mnemonic: string, accountIndex: number, password: string, passphrase?: string, preset?: string, customPath?: string): KeypairInfo;
-export {};
+export declare function importFromMnemonic(name: string, mnemonic: string, accountIndex: number, passphrase?: string, preset?: string, customPath?: string, storeMnemonic?: boolean): KeypairInfo;
+/**
+ * Generate a new BIP39 mnemonic (seed phrase)
+ * @param wordCount - Number of words (12, 15, 18, 21, or 24), defaults to 24
+ * @returns Generated mnemonic phrase
+ */
+export declare function generateNewMnemonic(wordCount?: 12 | 15 | 18 | 21 | 24): string;
+export { KeypairFileData, KeypairInfo, Config };
 //# sourceMappingURL=keyManager.d.ts.map
