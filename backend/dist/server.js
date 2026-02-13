@@ -183,10 +183,12 @@ app.post('/api/transaction/details', (req, res) => {
         res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
     }
 });
-// Start server
-app.listen(PORT, () => {
-    console.log(`Offline Signer Backend running on port ${PORT}`);
-    console.log(`Open http://localhost:${PORT} to access the signer`);
-});
+// Start server only if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+        console.log(`Offline Signer Backend running on port ${PORT}`);
+        console.log(`Open http://localhost:${PORT} to access the signer`);
+    });
+}
 exports.default = app;
 //# sourceMappingURL=server.js.map
