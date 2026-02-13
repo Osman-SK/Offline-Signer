@@ -4,6 +4,29 @@
 
 Built with TypeScript for type safety and better developer experience.
 
+## 📑 Table of Contents
+
+- [🎯 Problem](#-problem)
+- [✨ Features](#-features)
+- [🚀 Quick Start](#-quick-start)
+- [📖 How It Works](#-how-it-works)
+- [🔄 Complete Air-Gapped Workflow](#-complete-air-gapped-workflow)
+- [📁 Project Structure](#-project-structure)
+- [🔧 API Endpoints](#-api-endpoints)
+- [🧪 Transaction Format](#-transaction-format)
+- [💡 Use Cases](#-use-cases)
+- [🛠️ Development](#-development)
+- [🧪 Testing](#-testing)
+- [🏗️ Technology Stack](#-technology-stack)
+- [🔐 Security Model](#-security-model)
+- [🔗 Compatibility](#-compatibility)
+- [💻 CLI Alternative](#-cli-alternative)
+- [📝 Roadmap](#-roadmap)
+- [🏆 Colosseum Hackathon](#-colosseum-hackathon)
+- [⚠️ Security Warnings](#-security-warnings)
+- [🐛 Troubleshooting](#-troubleshooting)
+- [📄 License](#-license)
+
 ## 🎯 Problem
 
 Standard wallet workflows require your private key on an internet-connected device, creating security risks for high-value operations. This tool provides true cold storage with a user-friendly interface.
@@ -60,6 +83,25 @@ npm start
 5. **Open your browser**:
 Navigate to `http://localhost:3000`
 
+### Setting Up Both Applications
+
+**Offline Signer** (for air-gapped machine):
+```bash
+cd backend
+npm install
+npm run build
+npm start
+# Access at http://localhost:3000
+```
+
+**Transaction Creator** (for online machine):
+```bash
+cd transaction-creator-and-broadcaster
+npm install
+npm run dev
+# Access at http://localhost:5173
+```
+
 ### Development Mode
 
 ```bash
@@ -107,32 +149,141 @@ npm run dev  # Uses ts-node for hot-reload
 - Download the `signed-tx.json` file
 - Transfer this file to your online machine for broadcasting
 
+## 🔄 Complete Air-Gapped Workflow
+
+This project includes **two complementary applications** for a complete offline signing workflow:
+
+### **Applications Overview**
+
+| Application | Environment | Purpose |
+|-------------|-------------|---------|
+| **Transaction Creator & Broadcaster** | 💻 Online (internet-connected) | Creates unsigned transactions + broadcasts signed ones |
+| **Offline Signer** | 🔒 Offline (air-gapped) | Signs transactions with private keys |
+
+### **Visual Workflow**
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   ONLINE        │     │   OFFLINE       │     │   ONLINE        │
+│   (Connected)   │ ──► │   (Air-Gapped)  │ ──► │   (Connected)   │
+├─────────────────┤     ├─────────────────┤     ├─────────────────┤
+│ Transaction     │     │ Offline Signer  │     │ Transaction     │
+│ Creator         │     │                 │     │ Creator         │
+│                 │     │ 1. Upload       │     │                 │
+│ 1. Create Nonce │     │    unsigned-tx  │     │ 3. Broadcast    │
+│ 2. Create Tx    │     │ 2. Review       │     │    signed-tx    │
+│                 │     │ 3. Sign         │     │                 │
+│ Output:         │     │                 │     │ Result:         │
+│ unsigned-tx.json│     │ Output:         │     │ Tx on network!  │
+└─────────────────┘     │ signed-tx.json  │     └─────────────────┘
+                        └─────────────────┘
+```
+
+### **Step-by-Step Workflow**
+
+#### **Step 1: Create Durable Nonce (ONLINE)** ⬅️ *Use Transaction Creator*
+- **Why**: Nonces prevent replay attacks in offline transactions
+- **App**: Transaction Creator & Broadcaster
+- **Action**: Create a durable nonce account
+  - Hot wallet (connected) = pays for creation
+  - Cold wallet (offline) = authority
+- **Output**: `nonce-account.json` saved to USB/SD
+
+#### **Step 2: Create Unsigned Transaction (ONLINE)** ⬅️ *Use Transaction Creator*
+- **App**: Transaction Creator & Broadcaster
+- **Options**:
+  - SOL Transfer: Create unsigned SOL transfer
+  - Token Transfer: Create SPL token (USDC, USDT, etc.) transfer
+- **Input**: Cold wallet public key as sender
+- **Output**: `unsigned-tx.json` saved to USB/SD
+
+#### **Step 3: Sign Transaction (OFFLINE)** ⬅️ *Use Offline Signer*
+- **Environment**: Move USB/SD to offline machine
+- **App**: Offline Signer (this app)
+- **Location**: `http://localhost:3000`
+- **Actions**:
+  1. Upload `unsigned-tx.json`
+  2. Review transaction details
+  3. Select cold wallet keypair
+  4. Enter password
+  5. Approve & Sign
+- **Output**: `signed-tx.json` saved to USB/SD
+
+#### **Step 4: Broadcast Transaction (ONLINE)** ⬅️ *Use Transaction Creator*
+- **Environment**: Move USB/SD back to online machine
+- **App**: Transaction Creator & Broadcaster
+- **Action**: Upload `signed-tx.json` and broadcast
+- **Result**: Transaction submitted to Solana network!
+
+### **Which App for Which Step?**
+
+| Task | Online/Offline | Application | File I/O |
+|------|----------------|-------------|----------|
+| Create Nonce | 💻 ONLINE | Transaction Creator | Save to USB |
+| Create Unsigned Tx | 💻 ONLINE | Transaction Creator | Save to USB |
+| Review & Sign Tx | 🔒 OFFLINE | Offline Signer | Read USB → Write USB |
+| Broadcast Tx | 💻 ONLINE | Transaction Creator | Read USB |
+
+### **File Formats**
+
+**`unsigned-tx.json`** (created by Transaction Creator):
+```json
+{
+  "description": "Transfer 1 SOL to...",
+  "network": "devnet",
+  "messageBase64": "...",
+  "meta": {
+    "tokenSymbol": "SOL",
+    "decimals": 9,
+    "amount": 1.0
+  }
+}
+```
+
+**`signed-tx.json`** (created by Offline Signer):
+```json
+{
+  "signature": "base64-encoded-signature",
+  "publicKey": "signer-public-key",
+  "signedAt": "2026-02-13T...",
+  "network": "devnet",
+  "description": "Transfer 1 SOL to..."
+}
+```
+
 ## 📁 Project Structure
 
 ```
 offline-signer/
-├── backend/                 # TypeScript Node.js server
+├── backend/                              # TypeScript Node.js server
 │   ├── src/
-│   │   ├── server.ts        # Express server with typed routes
-│   │   ├── keyManager.ts    # Key generation, import, encryption
-│   │   ├── txProcessor.ts   # Transaction parsing and validation
-│   │   ├── signer.ts        # Transaction signing operations
-│   │   ├── types.ts         # TypeScript type definitions
-│   │   └── __tests__/       # Jest test suite (82 tests)
-│   ├── dist/                # Compiled JavaScript
-│   ├── keys/                # Encrypted keypairs (created at runtime)
-│   └── uploads/             # Transaction files (created at runtime)
-├── frontend/                # TypeScript browser interface
+│   │   ├── server.ts                     # Express server with typed routes
+│   │   ├── keyManager.ts                 # Key generation, import, encryption
+│   │   ├── txProcessor.ts                # Transaction parsing and validation
+│   │   ├── signer.ts                     # Transaction signing operations
+│   │   ├── types.ts                      # TypeScript type definitions
+│   │   └── __tests__/                    # Jest test suite (82 tests)
+│   ├── dist/                             # Compiled JavaScript
+│   ├── keys/                             # Encrypted keypairs (created at runtime)
+│   └── uploads/                          # Transaction files (created at runtime)
+├── frontend/                             # TypeScript browser interface
 │   ├── src/
-│   │   ├── script.ts        # Client-side logic with types
-│   │   └── types.ts         # Frontend type definitions
-│   ├── dist/                # Compiled JavaScript
-│   ├── index.html           # Main UI
-│   └── style.css            # Styling
-├── cli/                     # Reference CLI tool (TypeScript)
-├── types/                   # Shared TypeScript types
-│   └── index.ts             # Common type definitions
-└── README.md                # This file
+│   │   ├── script.ts                     # Client-side logic with types
+│   │   └── types.ts                      # Frontend type definitions
+│   ├── dist/                             # Compiled JavaScript
+│   ├── index.html                        # Main UI
+│   └── style.css                         # Styling
+├── transaction-creator-and-broadcaster/  # React app for online operations
+│   ├── src/
+│   │   ├── components/                   # CreateNonceTab, SolTransferTab, etc.
+│   │   └── utils/                        # Solana helpers
+│   ├── dist/                             # Built React app
+│   ├── index.html
+│   └── README.md                         # Transaction Creator docs
+├── cli/                                  # Reference CLI tool (TypeScript)
+├── types/                                # Shared TypeScript types
+│   └── index.ts                          # Common type definitions
+└── README.md                             # This file
 ```
 
 ## 🔧 API Endpoints
@@ -391,6 +542,25 @@ You can create transactions using the CLI and sign them with this browser interf
 - Solana Devnet
 - Solana Testnet
 
+## 💻 CLI Alternative
+
+For power users who prefer command-line interfaces, a reference CLI implementation is included in `/cli/`:
+
+```bash
+cd cli
+npm install
+npm run build
+
+# Available commands:
+npx ts-node src/index.ts create-nonce    # Create durable nonce
+npx ts-node src/index.ts sol-transfer    # Create unsigned SOL transfer
+npx ts-node src/index.ts token-transfer  # Create unsigned token transfer
+npx ts-node src/index.ts sign            # Sign transaction offline
+npx ts-node src/index.ts broadcast       # Broadcast signed transaction
+```
+
+The CLI provides the same workflow as the web apps but via terminal commands.
+
 ## 📝 Roadmap
 
 ### Phase 1 (Current - MVP)
@@ -401,6 +571,7 @@ You can create transactions using the CLI and sign them with this browser interf
 - ✅ Human-readable transaction display
 - ✅ TypeScript migration
 - ✅ Comprehensive test suite (82 tests)
+- ✅ Transaction Creator & Broadcaster companion app
 
 ### Phase 2 (Post-Hackathon)
 - Hardware extension (SD card or USB device)
