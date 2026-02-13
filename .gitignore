@@ -10,7 +10,6 @@ backend/keys/
 backend/uploads/
 *.json
 !package.json
-!tsconfig.json
 
 # CLI build output
 cli/dist/
