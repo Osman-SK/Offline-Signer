@@ -11,6 +11,7 @@ export interface KeypairInfo {
   publicKey: string;
   createdAt?: string;
   importedAt?: string;
+  hasSeedPhrase?: boolean;
 }
 
 export interface KeypairListResponse {
@@ -136,3 +137,51 @@ export type ButtonElement = HTMLButtonElement;
 // ============================================================================
 
 export type PrivateKeyFormat = 'base58' | 'base64' | 'json';
+
+// ============================================================================
+// Mnemonic Import Types
+// ============================================================================
+
+export interface MnemonicValidation {
+  valid: boolean;
+  wordCount: number;
+  checksumValid: boolean;
+  message: string;
+}
+
+export interface MnemonicValidationResponse {
+  success: boolean;
+  validation: MnemonicValidation;
+  error?: string;
+}
+
+export interface DerivationPathPreset {
+  name: string;
+  path: string;
+  description: string;
+}
+
+export interface DerivationPresetsResponse {
+  success: boolean;
+  presets: Record<string, DerivationPathPreset>;
+  error?: string;
+}
+
+export interface DerivedAddress {
+  index: number;
+  path: string;
+  publicKey: string;
+}
+
+export interface DerivePreviewResponse {
+  success: boolean;
+  addresses: DerivedAddress[];
+  error?: string;
+}
+
+export interface ImportMnemonicResponse {
+  success: boolean;
+  publicKey?: string;
+  message?: string;
+  error?: string;
+}

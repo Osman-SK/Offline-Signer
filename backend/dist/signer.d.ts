@@ -38,10 +38,9 @@ interface SignResult {
  * Sign a transaction
  * @param transactionFilePath - Path to unsigned transaction file
  * @param keyName - Name of the keypair to use
- * @param password - Password to decrypt the keypair
  * @returns Signature and output file path
  */
-export declare function signTransaction(transactionFilePath: string, keyName: string, password: string): Promise<SignResult>;
+export declare function signTransaction(transactionFilePath: string, keyName: string): Promise<SignResult>;
 /**
  * Verify a signature
  * @param messageBase64 - Base64 encoded message

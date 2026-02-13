@@ -47,7 +47,6 @@ describe('signer', () => {
     const TEST_KEYS_DIR = path.join(__dirname, '../../keys');
     const TEST_UPLOADS_DIR = path.join(__dirname, '../../uploads');
     const TEST_KEYPAIR_NAME = 'test-signing-keypair';
-    const TEST_PASSWORD = 'test-password-123';
     // Create test keypair and transaction before tests
     beforeAll(async () => {
         // Ensure directories exist
@@ -65,7 +64,7 @@ describe('signer', () => {
             // Keypair might not exist
         }
         // Create test keypair fresh
-        keyManager.generateKeypair(TEST_KEYPAIR_NAME, TEST_PASSWORD);
+        keyManager.generateKeypair(TEST_KEYPAIR_NAME);
     });
     // Clean up after all tests
     afterAll(() => {
@@ -81,7 +80,7 @@ describe('signer', () => {
         beforeEach(() => {
             // Ensure test keypair exists for signTransaction tests
             try {
-                keyManager.generateKeypair(TEST_KEYPAIR_NAME, TEST_PASSWORD);
+                keyManager.generateKeypair(TEST_KEYPAIR_NAME);
             }
             catch {
                 // Keypair might already exist
@@ -127,7 +126,7 @@ describe('signer', () => {
             }
         });
         it('should sign transaction successfully', async () => {
-            const result = await signer.signTransaction(testTxFilePath, TEST_KEYPAIR_NAME, TEST_PASSWORD);
+            const result = await signer.signTransaction(testTxFilePath, TEST_KEYPAIR_NAME);
             expect(result).toBeDefined();
             expect(result.signature).toBeDefined();
             expect(result.signature.length).toBeGreaterThan(0);
@@ -137,7 +136,7 @@ describe('signer', () => {
             expect(result.signedAt).toBeDefined();
         });
         it('should create signed transaction file', async () => {
-            const result = await signer.signTransaction(testTxFilePath, TEST_KEYPAIR_NAME, TEST_PASSWORD);
+            const result = await signer.signTransaction(testTxFilePath, TEST_KEYPAIR_NAME);
             expect(fs.existsSync(result.outputPath)).toBe(true);
             const signedData = JSON.parse(fs.readFileSync(result.outputPath, 'utf-8'));
             expect(signedData.signature).toBe(result.signature);
@@ -146,13 +145,10 @@ describe('signer', () => {
             expect(signedData.network).toBe('devnet');
         });
         it('should throw error if transaction file does not exist', async () => {
-            await expect(signer.signTransaction('/non/existent/file.json', TEST_KEYPAIR_NAME, TEST_PASSWORD)).rejects.toThrow();
+            await expect(signer.signTransaction('/non/existent/file.json', TEST_KEYPAIR_NAME)).rejects.toThrow();
         });
         it('should throw error if keypair does not exist', async () => {
-            await expect(signer.signTransaction(testTxFilePath, 'non-existent-keypair', TEST_PASSWORD)).rejects.toThrow("Keypair 'non-existent-keypair' not found");
-        });
-        it('should throw error if password is incorrect', async () => {
-            await expect(signer.signTransaction(testTxFilePath, TEST_KEYPAIR_NAME, 'wrong-password')).rejects.toThrow('Invalid password');
+            await expect(signer.signTransaction(testTxFilePath, 'non-existent-keypair')).rejects.toThrow("Keypair 'non-existent-keypair' not found");
         });
     });
     describe('verifySignature', () => {
@@ -195,7 +191,7 @@ describe('signer', () => {
         beforeEach(() => {
             // Ensure test keypair exists for createSigningPreview tests
             try {
-                keyManager.generateKeypair(TEST_KEYPAIR_NAME, TEST_PASSWORD);
+                keyManager.generateKeypair(TEST_KEYPAIR_NAME);
             }
             catch {
                 // Keypair might already exist

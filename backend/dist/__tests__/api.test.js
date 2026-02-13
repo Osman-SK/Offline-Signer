@@ -48,8 +48,8 @@ const server_1 = __importDefault(require("../server"));
 describe('API Integration Tests', () => {
     const TEST_KEYS_DIR = path.join(__dirname, '../../keys');
     const TEST_UPLOADS_DIR = path.join(__dirname, '../../uploads');
+    const TEST_CONFIG_FILE = path.join(__dirname, '../../config.json');
     const TEST_KEYPAIR_NAME = 'test-api-keypair';
-    const TEST_PASSWORD = 'test-password-123';
     beforeAll(() => {
         // Ensure directories exist
         if (!fs.existsSync(TEST_KEYS_DIR)) {
@@ -57,6 +57,16 @@ describe('API Integration Tests', () => {
         }
         if (!fs.existsSync(TEST_UPLOADS_DIR)) {
             fs.mkdirSync(TEST_UPLOADS_DIR, { recursive: true });
+        }
+        // Clear any existing password to ensure tests run without password protection
+        if (fs.existsSync(TEST_CONFIG_FILE)) {
+            fs.unlinkSync(TEST_CONFIG_FILE);
+        }
+    });
+    afterAll(() => {
+        // Clean up config file
+        if (fs.existsSync(TEST_CONFIG_FILE)) {
+            fs.unlinkSync(TEST_CONFIG_FILE);
         }
     });
     afterAll(() => {
@@ -94,7 +104,6 @@ describe('API Integration Tests', () => {
                 .post('/api/keys/generate')
                 .send({
                 name: TEST_KEYPAIR_NAME,
-                password: TEST_PASSWORD,
             })
                 .expect(200);
             expect(response.body.success).toBe(true);
@@ -104,19 +113,7 @@ describe('API Integration Tests', () => {
         it('should return error if name is missing', async () => {
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/keys/generate')
-                .send({
-                password: TEST_PASSWORD,
-            })
-                .expect(500);
-            expect(response.body.success).toBe(false);
-            expect(response.body.error).toContain('required');
-        });
-        it('should return error if password is missing', async () => {
-            const response = await (0, supertest_1.default)(server_1.default)
-                .post('/api/keys/generate')
-                .send({
-                name: TEST_KEYPAIR_NAME,
-            })
+                .send({})
                 .expect(500);
             expect(response.body.success).toBe(false);
             expect(response.body.error).toContain('required');
@@ -127,14 +124,12 @@ describe('API Integration Tests', () => {
                 .post('/api/keys/generate')
                 .send({
                 name: TEST_KEYPAIR_NAME,
-                password: TEST_PASSWORD,
             });
             // Try to create again
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/keys/generate')
                 .send({
                 name: TEST_KEYPAIR_NAME,
-                password: TEST_PASSWORD,
             })
                 .expect(500);
             expect(response.body.success).toBe(false);
@@ -158,7 +153,6 @@ describe('API Integration Tests', () => {
                 .send({
                 name: TEST_KEYPAIR_NAME,
                 privateKey: TEST_PRIVATE_KEY_BASE58,
-                password: TEST_PASSWORD,
                 format: 'base58',
             })
                 .expect(200);
@@ -173,7 +167,6 @@ describe('API Integration Tests', () => {
                 .send({
                 name: TEST_KEYPAIR_NAME,
                 privateKey: secretKey,
-                password: TEST_PASSWORD,
                 format: 'json',
             })
                 .expect(200);
@@ -186,7 +179,6 @@ describe('API Integration Tests', () => {
                 .send({
                 name: TEST_KEYPAIR_NAME,
                 privateKey: 'invalid-key',
-                password: TEST_PASSWORD,
                 format: 'base58',
             })
                 .expect(500);
@@ -210,7 +202,6 @@ describe('API Integration Tests', () => {
                 .post('/api/keys/generate')
                 .send({
                 name: TEST_KEYPAIR_NAME,
-                password: TEST_PASSWORD,
             });
         });
         it('should delete existing keypair', async () => {
@@ -288,7 +279,6 @@ describe('API Integration Tests', () => {
                 .post('/api/keys/generate')
                 .send({
                 name: TEST_KEYPAIR_NAME,
-                password: TEST_PASSWORD,
             });
             // Create a test transaction file
             const keypair = web3_js_1.Keypair.generate();
@@ -342,7 +332,6 @@ describe('API Integration Tests', () => {
                 .send({
                 filePath: testFilePath,
                 keyName: TEST_KEYPAIR_NAME,
-                password: TEST_PASSWORD,
                 approve: true,
             })
                 .expect(200);
@@ -358,25 +347,11 @@ describe('API Integration Tests', () => {
                 .send({
                 filePath: testFilePath,
                 keyName: TEST_KEYPAIR_NAME,
-                password: TEST_PASSWORD,
                 approve: false,
             })
                 .expect(200);
             expect(response.body.success).toBe(false);
             expect(response.body.message).toContain('declined');
-        });
-        it('should return error for incorrect password', async () => {
-            const response = await (0, supertest_1.default)(server_1.default)
-                .post('/api/transaction/sign')
-                .send({
-                filePath: testFilePath,
-                keyName: TEST_KEYPAIR_NAME,
-                password: 'wrong-password',
-                approve: true,
-            })
-                .expect(500);
-            expect(response.body.success).toBe(false);
-            expect(response.body.error).toContain('Invalid password');
         });
     });
     describe('GET /api/download/:filename', () => {
