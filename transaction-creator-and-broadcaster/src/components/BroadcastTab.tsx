@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import type { TabProps, StatusMessage, UnsignedTransaction, SignedTransaction } from '../types';
+import type { TabProps, StatusMessage, SignedTransaction } from '../types';
 import { broadcastSignedTransaction } from '../utils/solana';
 import { readJsonFile } from '../utils/download';
 import { WalletButton } from './WalletButton';
@@ -8,23 +8,12 @@ import { WalletButton } from './WalletButton';
 export const BroadcastTab: React.FC<TabProps> = ({ network }) => {
   const { publicKey, connected } = useWallet();
   const { connection } = useConnection();
-  const [unsignedFile, setUnsignedFile] = useState<File | null>(null);
   const [signedFile, setSignedFile] = useState<File | null>(null);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [status, setStatus] = useState<StatusMessage | null>(null);
   const [txSignature, setTxSignature] = useState<string | null>(null);
-  
-  const unsignedInputRef = useRef<HTMLInputElement>(null);
-  const signedInputRef = useRef<HTMLInputElement>(null);
 
-  const handleUnsignedFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      console.log('[BroadcastTab] Unsigned file selected:', file.name);
-      setUnsignedFile(file);
-      setStatus(null);
-    }
-  };
+  const signedInputRef = useRef<HTMLInputElement>(null);
 
   const handleSignedFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -37,14 +26,14 @@ export const BroadcastTab: React.FC<TabProps> = ({ network }) => {
 
   const handleBroadcast = async () => {
     console.log('[BroadcastTab] Starting broadcast...');
-    
+
     if (!connected || !publicKey) {
       setStatus({ type: 'error', message: 'Please connect your wallet first' });
       return;
     }
 
-    if (!unsignedFile || !signedFile) {
-      setStatus({ type: 'error', message: 'Please upload both unsigned and signed transaction files' });
+    if (!signedFile) {
+      setStatus({ type: 'error', message: 'Please upload the signed transaction file' });
       return;
     }
 
@@ -53,46 +42,51 @@ export const BroadcastTab: React.FC<TabProps> = ({ network }) => {
     setTxSignature(null);
 
     try {
-      console.log('[BroadcastTab] Reading unsigned transaction file...');
-      const unsignedData = await readJsonFile<UnsignedTransaction>(unsignedFile);
-      console.log('[BroadcastTab] Unsigned data:', {
-        description: unsignedData.description,
-        network: unsignedData.network,
-        messageLength: unsignedData.messageBase64?.length
-      });
-
       console.log('[BroadcastTab] Reading signed transaction file...');
       const signedData = await readJsonFile<SignedTransaction>(signedFile);
       console.log('[BroadcastTab] Signed data:', {
         signature: signedData.signature?.slice(0, 20) + '...',
-        publicKey: signedData.publicKey
+        publicKey: signedData.publicKey,
+        messageLength: signedData.messageBase64?.length,
+        network: signedData.network
       });
 
       // Validate network match
-      if (unsignedData.network !== network) {
-        console.warn('[BroadcastTab] Network mismatch:', unsignedData.network, 'vs', network);
-        setStatus({ 
-          type: 'error', 
-          message: `Network mismatch: Transaction is for ${unsignedData.network} but current network is ${network}` 
+      if (signedData.network !== network) {
+        console.warn('[BroadcastTab] Network mismatch:', signedData.network, 'vs', network);
+        setStatus({
+          type: 'error',
+          message: `Network mismatch: Transaction is for ${signedData.network} but current network is ${network}`
+        });
+        setIsBroadcasting(false);
+        return;
+      }
+
+      // Validate messageBase64 exists
+      if (!signedData.messageBase64) {
+        console.error('[BroadcastTab] Missing messageBase64 in signed file');
+        setStatus({
+          type: 'error',
+          message: 'Invalid signed transaction file: missing messageBase64. Please use the updated offline signer.'
         });
         setIsBroadcasting(false);
         return;
       }
 
       console.log('[BroadcastTab] Broadcasting signed transaction...');
-      const txid = await broadcastSignedTransaction(connection, unsignedData, signedData);
+      const txid = await broadcastSignedTransaction(connection, signedData);
       console.log('[BroadcastTab] Transaction broadcasted successfully:', txid);
-      
+
       setTxSignature(txid);
-      setStatus({ 
-        type: 'success', 
-        message: 'Transaction broadcasted successfully!' 
+      setStatus({
+        type: 'success',
+        message: 'Transaction broadcasted successfully!'
       });
     } catch (error) {
       console.error('[BroadcastTab] Failed to broadcast transaction:', error);
-      setStatus({ 
-        type: 'error', 
-        message: `Failed to broadcast: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      setStatus({
+        type: 'error',
+        message: `Failed to broadcast: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     } finally {
       setIsBroadcasting(false);
@@ -114,24 +108,11 @@ export const BroadcastTab: React.FC<TabProps> = ({ network }) => {
         </p>
 
         <div className="form-group">
-          <label>Connected Wallet (Fee Payer):</label>
+          <label>Connected Wallet (For Broadcasting):</label>
           <WalletButton />
           <small>
-            This wallet will pay the transaction fee (~0.000005 SOL). Click Disconnect to switch wallets.
+            Cold wallet will pay the transaction fee (~0.000005 SOL). Click Disconnect to switch wallets.
           </small>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="unsigned-file">Unsigned Transaction File:</label>
-          <input
-            type="file"
-            id="unsigned-file"
-            accept=".json"
-            onChange={handleUnsignedFileChange}
-            ref={unsignedInputRef}
-            disabled={isBroadcasting}
-          />
-          <small>Upload the unsigned-tx.json file</small>
         </div>
 
         <div className="form-group">
@@ -144,12 +125,12 @@ export const BroadcastTab: React.FC<TabProps> = ({ network }) => {
             ref={signedInputRef}
             disabled={isBroadcasting}
           />
-          <small>Upload the signed-tx.json file from your offline signer</small>
+          <small>Upload the signed-tx.json file from your offline signer (contains signature and original message)</small>
         </div>
 
         <button
           onClick={handleBroadcast}
-          disabled={isBroadcasting || !connected || !unsignedFile || !signedFile}
+          disabled={isBroadcasting || !connected || !signedFile}
           className="btn btn-success"
         >
           {isBroadcasting ? 'Broadcasting...' : 'Broadcast Transaction'}
@@ -169,9 +150,9 @@ export const BroadcastTab: React.FC<TabProps> = ({ network }) => {
               {txSignature}
             </p>
             <p style={{ marginTop: '15px' }}>
-              <a 
-                href={getExplorerUrl(txSignature)} 
-                target="_blank" 
+              <a
+                href={getExplorerUrl(txSignature)}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-primary"
                 style={{ display: 'inline-block', textDecoration: 'none' }}

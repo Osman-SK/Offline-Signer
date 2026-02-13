@@ -1,7 +1,7 @@
-import { 
-  Connection, 
-  PublicKey, 
-  SystemProgram, 
+import {
+  Connection,
+  PublicKey,
+  SystemProgram,
   NONCE_ACCOUNT_LENGTH,
   NonceAccount,
   TransactionMessage,
@@ -11,6 +11,7 @@ import {
   VersionedTransaction,
   VersionedMessage
 } from '@solana/web3.js';
+import type { SignedTransaction } from '../types';
 import {
   createAssociatedTokenAccountInstruction,
   createTransferInstruction,
@@ -199,14 +200,13 @@ export const constructTokenTransferMessage = async (
 
 export const broadcastSignedTransaction = async (
   connection: Connection,
-  unsignedData: { messageBase64: string; network: string },
-  signatureData: { signature: string; publicKey: string }
+  signedData: SignedTransaction
 ): Promise<string> => {
-  const messageBuffer = Buffer.from(unsignedData.messageBase64, 'base64');
+  const messageBuffer = Buffer.from(signedData.messageBase64, 'base64');
   const messageV0 = VersionedMessage.deserialize(messageBuffer);
 
-  const signatureBuffer = Buffer.from(signatureData.signature, 'base64');
-  const signerPubkey = new PublicKey(signatureData.publicKey);
+  const signatureBuffer = Buffer.from(signedData.signature, 'base64');
+  const signerPubkey = new PublicKey(signedData.publicKey);
 
   const transaction = new VersionedTransaction(messageV0);
 

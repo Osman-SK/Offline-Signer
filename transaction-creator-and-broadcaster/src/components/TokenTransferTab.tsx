@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import type { TabProps, StatusMessage, UnsignedTransaction, NonceAccountInfo } from '../types';
 import { getConnection, constructTokenTransferMessage } from '../utils/solana';
 import { downloadJson } from '../utils/download';
-import { WalletButton } from './WalletButton';
 
 interface TokenTransferTabProps extends TabProps {
   nonceAccounts: NonceAccountInfo[];
@@ -12,21 +10,19 @@ interface TokenTransferTabProps extends TabProps {
 
 // Common token mints for quick select
 const COMMON_TOKENS: Record<string, { mint: string; symbol: string; decimals: number }> = {
-  USDC: { 
-    mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 
-    symbol: 'USDC', 
-    decimals: 6 
+  USDC: {
+    mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    symbol: 'USDC',
+    decimals: 6
   },
-  USDT: { 
-    mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', 
-    symbol: 'USDT', 
-    decimals: 6 
+  USDT: {
+    mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+    symbol: 'USDT',
+    decimals: 6
   }
 };
 
 export const TokenTransferTab: React.FC<TokenTransferTabProps> = ({ network, nonceAccounts }) => {
-  const { publicKey, connected } = useWallet();
-  const [useConnectedWallet, setUseConnectedWallet] = useState(false);
   const [senderPubkey, setSenderPubkey] = useState('');
   const [recipient, setRecipient] = useState('');
   const [nonceAddress, setNonceAddress] = useState('');
@@ -51,28 +47,19 @@ export const TokenTransferTab: React.FC<TokenTransferTabProps> = ({ network, non
 
   const handleCreateTransaction = async () => {
     console.log('[TokenTransferTab] Starting token transfer creation...');
-    
+
+    if (!senderPubkey.trim()) {
+      setStatus({ type: 'error', message: 'Please enter the sender (cold wallet) public key' });
+      return;
+    }
+
     let sender: PublicKey;
-    
-    if (useConnectedWallet) {
-      if (!connected || !publicKey) {
-        setStatus({ type: 'error', message: 'Please connect your wallet first' });
-        return;
-      }
-      sender = publicKey;
-      console.log('[TokenTransferTab] Using connected wallet as sender:', sender.toBase58());
-    } else {
-      if (!senderPubkey.trim()) {
-        setStatus({ type: 'error', message: 'Please enter the sender (cold wallet) public key' });
-        return;
-      }
-      try {
-        sender = new PublicKey(senderPubkey);
-        console.log('[TokenTransferTab] Using manual sender:', sender.toBase58());
-      } catch {
-        setStatus({ type: 'error', message: 'Invalid sender public key' });
-        return;
-      }
+    try {
+      sender = new PublicKey(senderPubkey);
+      console.log('[TokenTransferTab] Using cold wallet sender:', sender.toBase58());
+    } catch {
+      setStatus({ type: 'error', message: 'Invalid sender public key' });
+      return;
     }
 
     if (!recipient.trim() || !nonceAddress.trim() || !mintAddress.trim() || !amount.trim()) {
@@ -145,9 +132,9 @@ export const TokenTransferTab: React.FC<TokenTransferTabProps> = ({ network, non
       setStatus({ type: 'success', message: 'Unsigned transaction created and downloaded!' });
     } catch (error) {
       console.error('[TokenTransferTab] Failed to create transaction:', error);
-      setStatus({ 
-        type: 'error', 
-        message: `Failed to create transaction: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      setStatus({
+        type: 'error',
+        message: `Failed to create transaction: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     } finally {
       setIsCreating(false);
@@ -176,44 +163,17 @@ export const TokenTransferTab: React.FC<TokenTransferTabProps> = ({ network, non
         </p>
 
         <div className="form-group">
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={useConnectedWallet}
-              onChange={(e) => {
-                setUseConnectedWallet(e.target.checked);
-                console.log('[TokenTransferTab] Use connected wallet:', e.target.checked);
-              }}
-            />
-            <span>Use Connected Wallet</span>
-          </label>
-          <small>
-            {useConnectedWallet 
-              ? 'Sender will be your connected wallet' 
-              : 'Enter sender manually (offline/air-gapped signing)'}
-          </small>
+          <label htmlFor="token-sender-pubkey">Sender (Cold Wallet):</label>
+          <input
+            type="text"
+            id="token-sender-pubkey"
+            value={senderPubkey}
+            onChange={(e) => setSenderPubkey(e.target.value)}
+            placeholder="Enter cold wallet public key"
+            disabled={isCreating}
+          />
+          <small>Enter the cold wallet address that will sign this transaction offline</small>
         </div>
-
-        {useConnectedWallet ? (
-          <div className="form-group">
-            <label>Connected Wallet:</label>
-            <WalletButton />
-            <small>Click Disconnect to switch wallets</small>
-          </div>
-        ) : (
-          <div className="form-group">
-            <label htmlFor="token-sender-pubkey">Sender (Cold Wallet):</label>
-            <input
-              type="text"
-              id="token-sender-pubkey"
-              value={senderPubkey}
-              onChange={(e) => setSenderPubkey(e.target.value)}
-              placeholder="Enter sender public key"
-              disabled={isCreating}
-            />
-            <small>Any valid Solana address - no validation required</small>
-          </div>
-        )}
 
         <div className="form-group">
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -230,7 +190,7 @@ export const TokenTransferTab: React.FC<TokenTransferTabProps> = ({ network, non
                 </option>
               ))}
             </select>
-            <button 
+            <button
               onClick={handleClearAll}
               className="btn btn-danger"
               style={{ fontSize: '0.85em', padding: '8px 16px' }}

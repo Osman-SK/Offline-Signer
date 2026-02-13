@@ -1,18 +1,14 @@
 import { useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import type { TabProps, StatusMessage, UnsignedTransaction, NonceAccountInfo } from '../types';
 import { getConnection, constructSolTransferMessage } from '../utils/solana';
 import { downloadJson } from '../utils/download';
-import { WalletButton } from './WalletButton';
 
 interface SolTransferTabProps extends TabProps {
   nonceAccounts: NonceAccountInfo[];
 }
 
 export const SolTransferTab: React.FC<SolTransferTabProps> = ({ network, nonceAccounts }) => {
-  const { publicKey, connected } = useWallet();
-  const [useConnectedWallet, setUseConnectedWallet] = useState(false);
   const [senderPubkey, setSenderPubkey] = useState('');
   const [recipient, setRecipient] = useState('');
   const [nonceAddress, setNonceAddress] = useState('');
@@ -23,28 +19,19 @@ export const SolTransferTab: React.FC<SolTransferTabProps> = ({ network, nonceAc
 
   const handleCreateTransaction = async () => {
     console.log('[SolTransferTab] Starting SOL transfer creation...');
-    
+
+    if (!senderPubkey.trim()) {
+      setStatus({ type: 'error', message: 'Please enter the sender (cold wallet) public key' });
+      return;
+    }
+
     let sender: PublicKey;
-    
-    if (useConnectedWallet) {
-      if (!connected || !publicKey) {
-        setStatus({ type: 'error', message: 'Please connect your wallet first' });
-        return;
-      }
-      sender = publicKey;
-      console.log('[SolTransferTab] Using connected wallet as sender:', sender.toBase58());
-    } else {
-      if (!senderPubkey.trim()) {
-        setStatus({ type: 'error', message: 'Please enter the sender (cold wallet) public key' });
-        return;
-      }
-      try {
-        sender = new PublicKey(senderPubkey);
-        console.log('[SolTransferTab] Using manual sender:', sender.toBase58());
-      } catch {
-        setStatus({ type: 'error', message: 'Invalid sender public key' });
-        return;
-      }
+    try {
+      sender = new PublicKey(senderPubkey);
+      console.log('[SolTransferTab] Using cold wallet sender:', sender.toBase58());
+    } catch {
+      setStatus({ type: 'error', message: 'Invalid sender public key' });
+      return;
     }
 
     if (!recipient.trim() || !nonceAddress.trim() || !amount.trim()) {
@@ -112,9 +99,9 @@ export const SolTransferTab: React.FC<SolTransferTabProps> = ({ network, nonceAc
       setStatus({ type: 'success', message: 'Unsigned transaction created and downloaded!' });
     } catch (error) {
       console.error('[SolTransferTab] Failed to create transaction:', error);
-      setStatus({ 
-        type: 'error', 
-        message: `Failed to create transaction: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      setStatus({
+        type: 'error',
+        message: `Failed to create transaction: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     } finally {
       setIsCreating(false);
@@ -140,44 +127,17 @@ export const SolTransferTab: React.FC<SolTransferTabProps> = ({ network, nonceAc
         </p>
 
         <div className="form-group">
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={useConnectedWallet}
-              onChange={(e) => {
-                setUseConnectedWallet(e.target.checked);
-                console.log('[SolTransferTab] Use connected wallet:', e.target.checked);
-              }}
-            />
-            <span>Use Connected Wallet</span>
-          </label>
-          <small>
-            {useConnectedWallet 
-              ? 'Sender will be your connected wallet' 
-              : 'Enter sender manually (offline/air-gapped signing)'}
-          </small>
+          <label htmlFor="sender-pubkey">Sender (Cold Wallet):</label>
+          <input
+            type="text"
+            id="sender-pubkey"
+            value={senderPubkey}
+            onChange={(e) => setSenderPubkey(e.target.value)}
+            placeholder="Enter cold wallet public key"
+            disabled={isCreating}
+          />
+          <small>Enter the cold wallet address that will sign this transaction offline</small>
         </div>
-
-        {useConnectedWallet ? (
-          <div className="form-group">
-            <label>Connected Wallet:</label>
-            <WalletButton />
-            <small>Click Disconnect to switch wallets</small>
-          </div>
-        ) : (
-          <div className="form-group">
-            <label htmlFor="sender-pubkey">Sender (Cold Wallet):</label>
-            <input
-              type="text"
-              id="sender-pubkey"
-              value={senderPubkey}
-              onChange={(e) => setSenderPubkey(e.target.value)}
-              placeholder="Enter sender public key"
-              disabled={isCreating}
-            />
-            <small>Any valid Solana address - no validation required</small>
-          </div>
-        )}
 
         <div className="form-group">
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -194,7 +154,7 @@ export const SolTransferTab: React.FC<SolTransferTabProps> = ({ network, nonceAc
                 </option>
               ))}
             </select>
-            <button 
+            <button
               onClick={handleClearAll}
               className="btn btn-danger"
               style={{ fontSize: '0.85em', padding: '8px 16px' }}

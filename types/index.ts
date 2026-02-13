@@ -62,7 +62,7 @@ export interface UnsignedTransaction {
 }
 
 /**
- * Signed transaction file format
+ * Signed transaction file format (self-contained for broadcasting)
  */
 export interface SignedTransaction {
   signature: string;
@@ -70,6 +70,12 @@ export interface SignedTransaction {
   signedAt: string;
   network: string;
   description: string;
+  messageBase64: string;  // Original unsigned message for broadcasting
+  meta?: {
+    tokenSymbol: string;
+    decimals: number;
+    amount: number;
+  };
 }
 
 /**

@@ -96,13 +96,20 @@ export async function signTransaction(
   );
   const signatureBase64 = Buffer.from(signature).toString('base64');
   
-  // Prepare signed transaction data
+  // Prepare signed transaction data (self-contained for broadcasting)
   const signedTxData = {
     signature: signatureBase64,
     publicKey: keypair.publicKey.toBase58(),
     signedAt: new Date().toISOString(),
     network: txData.network,
-    description: txData.description
+    description: txData.description,
+    messageBase64: txData.messageBase64,
+    meta: txData.details.amountFormatted ? {
+      // Try to reconstruct meta from details if available
+      tokenSymbol: txData.details.type.includes('Token') ? 'TOKEN' : 'SOL',
+      decimals: txData.details.type.includes('Token') ? 6 : 9,
+      amount: parseFloat(txData.details.amountFormatted?.replace(/[^0-9.]/g, '') || '0')
+    } : undefined
   };
   
   // Save signed transaction
